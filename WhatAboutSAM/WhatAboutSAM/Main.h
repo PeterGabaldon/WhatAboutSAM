@@ -1,5 +1,18 @@
 #pragma once
 
 #include <windef.h>
+#include "ntdll.h"
 
-FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName);
+typedef FARPROC(WINAPI* myMessageBox)(HWND, LPCTSTR, LPCTSTR, UINT);
+typedef NTSTATUS(WINAPI* myNtOpenKey)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
+typedef NTSTATUS(WINAPI* myNtQueryKey)(HANDLE, KEY_INFORMATION_CLASS, PVOID, ULONG, PULONG);
+typedef NTSTATUS(WINAPI* myNtEnumerateKey)(HANDLE, ULONG, KEY_INFORMATION_CLASS, PVOID, ULONG, PULONG);
+typedef NTSTATUS(WINAPI* myNtQueryValueKey)(HANDLE, PUNICODE_STRING, KEY_INFORMATION_CLASS, PVOID, ULONG, PULONG);
+typedef NTSTATUS(WINAPI* myNtEnumerateValueKey)(HANDLE, PUNICODE_STRING, KEY_INFORMATION_CLASS, PVOID, ULONG, PULONG);
+
+typedef struct _sam {
+	PCHAR rid;
+	PBYTE v;
+	PBYTE f;
+	PCHAR classes;
+} *PSAM, SAM;

