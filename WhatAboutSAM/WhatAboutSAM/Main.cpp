@@ -5,20 +5,24 @@
 // https://0xdarkvortex.dev/hiding-in-plainsight/
 // https://0xpat.github.io/Malware_development_part_4/
 
+//#define _CRT_SECURE_NO_WARNINGS
 
 #include <Windows.h>
 #include <winternl.h>
-#include <windef.h>
+#include <BaseTsd.h>
 
-FARPROC myGetProcAddress(PCHAR module, PCHAR export) {
-	PCHAR moduleMayus = (PCHAR)HeapAlloc(GetProcessHeap, 0, strlen(module));
+#include "Main.h"
+
+FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName) {
+	PCHAR moduleMayus = (PCHAR)HeapAlloc(GetProcessHeap(), 0, strlen(moduleName) + 1);
+	strncpy_s(moduleMayus, strlen(moduleName) + 1, moduleName, _TRUNCATE);
 	CharUpperA(moduleMayus);
 
 	PPEB pPEB = (PPEB)__readgsqword(0x60);
 	PPEB_LDR_DATA pLoaderData = pPEB->Ldr;
 	PLIST_ENTRY listHead = &pLoaderData->InMemoryOrderModuleList;
 	PLIST_ENTRY listCurrent = listHead->Flink;
-	PVOID moduleAddress;
+	PVOID moduleAddress = NULL;
 	do
 	{
 		PLDR_DATA_TABLE_ENTRY dllEntry = CONTAINING_RECORD(listCurrent, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
@@ -36,6 +40,10 @@ FARPROC myGetProcAddress(PCHAR module, PCHAR export) {
 		listCurrent = listCurrent->Flink;
 	} while (listCurrent != listHead);
 
+	if (moduleAddress == NULL) {
+		return NULL;
+	}
+
 	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)moduleAddress;
 	PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((PBYTE)moduleAddress + pDosHeader->e_lfanew);
 	PIMAGE_OPTIONAL_HEADER pOptionalHeader = (PIMAGE_OPTIONAL_HEADER) & (pNtHeader->OptionalHeader);
@@ -46,14 +54,14 @@ FARPROC myGetProcAddress(PCHAR module, PCHAR export) {
 
 	FARPROC found = NULL;
 
-	for (int i = 0; i < pExportDirectory->NumberOfNames; ++i) {
+	for (unsigned int i = 0; i < pExportDirectory->NumberOfNames; ++i) {
 		PCSTR pFunctionName = (PSTR)((PBYTE)moduleAddress + pAddressOfNames[i]);
-		if (strcmp(pFunctionName, export) == 0)
+		if (strcmp(pFunctionName, exportName) == 0)
 		{
-			found = (FARPROC)((PBYTE)moduleAddress + pAddressOfFunctions[pAddressOfNameOrdinals[i]]));
+			found = (FARPROC)((PBYTE)moduleAddress + pAddressOfFunctions[pAddressOfNameOrdinals[i]]);
 		}
 	}
-	HeapFree(GetProcessHeap, 0, moduleMayus);
+	HeapFree(GetProcessHeap(), 0, moduleMayus);
 
 	return found;
 }
@@ -62,5 +70,7 @@ int main(int argc, char** argv) {
 	typedef FARPROC(WINAPI* myMessageBox)(HWND, LPCTSTR, LPCTSTR, UINT);
 	myMessageBox pMyMessageBox = (myMessageBox)myGetProcAddress((PCHAR)"user32.dll", (PCHAR)"MessageBoxA");
 
-	pMyMessageBox(NULL, (LPCTSTR)"TEST", (LPCTSTR)"TEST", MB_OK);
+	if (pMyMessageBox != NULL) {
+		pMyMessageBox(NULL, (LPCTSTR)"TEST", (LPCTSTR)"TEST", MB_OK);
+	}
 }
