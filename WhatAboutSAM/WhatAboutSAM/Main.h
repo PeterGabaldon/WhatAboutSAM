@@ -3,6 +3,9 @@
 #include <windef.h>
 #include "ntdll.h"
 
+#define MAX_KEY_LENGTH 255
+#define MAX_VALUE_NAME 16383
+
 typedef FARPROC(WINAPI* myMessageBox)(HWND, LPCTSTR, LPCTSTR, UINT);
 typedef NTSTATUS(WINAPI* myNtOpenKey)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
 typedef NTSTATUS(WINAPI* myNtQueryKey)(HANDLE, KEY_INFORMATION_CLASS, PVOID, ULONG, PULONG);

