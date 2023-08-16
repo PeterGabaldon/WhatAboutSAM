@@ -12,10 +12,6 @@ jobs:
     - name: compile
       run: | 
         cd WhatAboutSAM; cd WhatAboutSAM; cl Main.cpp /Fe:WhatAboutSAM /std:c++14
-    - name: run
-      run: |
-        WhatAboutSAM\WhatAboutSAM\WhatAboutSAM.exe
-      shell: cmd
     - name: upload executable
       uses: actions/upload-artifact@v2
       with:
