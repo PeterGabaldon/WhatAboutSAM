@@ -15,6 +15,6 @@ jobs:
     - name: upload executable
       uses: actions/upload-artifact@v2
       with:
-        name: windows
+        name: WhatAboutSAM
         path: |
           WhatAboutSAM\WhatAboutSAM\WhatAboutSAM.exe
