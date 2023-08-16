@@ -11,7 +11,7 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@v1.4.1
     - name: compile
       run: | 
-        cd WhatAboutSAM; WhatAboutSAM; cl Main.cpp /Fe:WhatAboutSam /std:c++14
+        cd WhatAboutSAM; cd WhatAboutSAM; cl Main.cpp /Fe:WhatAboutSam /std:c++14
     - name: run
       run: |
         WhatAboutSam.exe
