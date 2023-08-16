@@ -1,7 +1,7 @@
 name: Compile
 
 on:
-  workflow_dispatch:
+  push:
 jobs:
   windows:
     name: run on windows
