@@ -1,0 +1,24 @@
+name: Compile
+
+on:
+  workflow_dispatch:
+jobs:
+  windows:
+    name: run on windows
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: ilammy/msvc-dev-cmd@v1.4.1
+    - name: compile
+      run: | 
+        cl Main.cpp /Fe:WhatAboutSam /std:c++14
+    - name: run
+      run: |
+        WhatAboutSam.exe
+      shell: cmd
+    - name: upload executable
+      uses: actions/upload-artifact@v2
+      with:
+        name: windows
+        path: |
+          WhatAboutSam.exe
