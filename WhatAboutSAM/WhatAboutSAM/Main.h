@@ -4,6 +4,7 @@
 #include "ntdll.h"
 
 #define MAX_KEY_LENGTH 255
+#define MAX_KEY_VALUE_LENGTH 1000
 #define MAX_VALUE_NAME 16383
 #define MAX_SAM_ENTRIES 100
 
@@ -16,10 +17,10 @@ typedef NTSTATUS(WINAPI* myNtEnumerateValueKey)(HANDLE, ULONG, KEY_VALUE_INFORMA
 typedef VOID(WINAPI* myRtlInitUnicodeString)(PUNICODE_STRING, __drv_aliasesMem PCWSTR);
 
 typedef struct _sam {
-	PCHAR rid;
-	PBYTE v;
-	PBYTE f;
-	PCHAR classes;
+	CHAR rid[MAX_KEY_LENGTH];
+	BYTE v[MAX_KEY_VALUE_LENGTH];
+	BYTE f[MAX_KEY_VALUE_LENGTH];
+	CHAR classes[MAX_KEY_VALUE_LENGTH];
 } *PSAM, SAM;
 
 void getSAM(PSAM samRegEntries[], PULONG len);

