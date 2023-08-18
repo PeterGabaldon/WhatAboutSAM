@@ -17,10 +17,10 @@ typedef NTSTATUS(WINAPI* myNtEnumerateValueKey)(HANDLE, ULONG, KEY_VALUE_INFORMA
 typedef VOID(WINAPI* myRtlInitUnicodeString)(PUNICODE_STRING, __drv_aliasesMem PCWSTR);
 
 typedef struct _sam {
-	CHAR rid[MAX_KEY_LENGTH];
+	WCHAR rid[MAX_KEY_LENGTH];
 	BYTE v[MAX_KEY_VALUE_LENGTH];
 	BYTE f[MAX_KEY_VALUE_LENGTH];
-	CHAR classes[MAX_KEY_VALUE_LENGTH];
+	WCHAR classes[MAX_KEY_VALUE_LENGTH];
 } *PSAM, SAM;
 
 void getSAM(PSAM samRegEntries[], PULONG len);
