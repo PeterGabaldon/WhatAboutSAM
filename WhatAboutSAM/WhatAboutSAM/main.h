@@ -27,6 +27,7 @@ typedef struct _sam {
 	WCHAR classes[MAX_KEY_VALUE_LENGTH];
 } *PSAM, SAM;
 
-void getSAM(PSAM samRegEntries[], PULONG len);
+void getSAM(PSAM samRegEntries[], PULONG size);
 void getClasses(PSAM samRegEntry);
-void getBootKey(PSAM samRegEntry, int* bootKeyRet);
+void getBootKey(PSAM samRegEntry, PLONG bootKeyRet);
+void strToKey(PBYTE s, PBYTE keyRet);
