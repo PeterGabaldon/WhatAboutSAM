@@ -249,7 +249,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 		LONG lenUsername = (LONG)samRegEntries[i]->v[0x10];
 		PWCHAR username = (PWCHAR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, lenUsername);
-		CopyMemory(username, &(samRegEntries[i]->v[offset]), lenUsername);
+		CopyMemory(username, &samRegEntries[i]->v[offset], lenUsername);
 
 		offset = ((LONG)samRegEntries[i]->v[0xA8]) + 0xcc;
 
@@ -257,14 +257,14 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		getBootKey(samRegEntries[i], bootKey);
 
 		BYTE encNTLM[16] = {};
-		CopyMemory(encNTLM, &(samRegEntries[i]->v[offset + 0x18]), 16);
+		CopyMemory(encNTLM, &samRegEntries[i]->v[offset + 0x18], 16);
 
 		if (samRegEntries[i]->v[0xAC] == 0x38) {
 			BYTE encSyskey[16] = {};
 			BYTE encSyskeyIV[16] = {};
 			// encSyskeyKey = bootkey
-			CopyMemory(encSyskey, &(samRegEntries[i]->f[0x88]), 16);
-			CopyMemory(encSyskeyIV, &(samRegEntries[i]->f[0x78]), 16);
+			CopyMemory(encSyskey, &samRegEntries[i]->f[0x88], 16);
+			CopyMemory(encSyskeyIV, &samRegEntries[i]->f[0x78], 16);
 
 			BYTE sysKey[16] = {};
 
@@ -278,7 +278,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			);
 
 			BYTE encNTLMIV[16] = {};
-			CopyMemory(encNTLMIV, &(samRegEntries[i]->v[offset + 0x8]), 16);
+			CopyMemory(encNTLMIV, &samRegEntries[i]->v[offset + 0x8], 16);
 			// encNTLMKey = encNTLMrecovered
 
 			CBC_Mode< AES >::Decryption d2;
@@ -295,7 +295,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		else if (samRegEntries[i]->v[0xAC] == 0x14) {
 			BYTE encSyskey[16] = {};
 			BYTE encSyskeyKey[16] = {};
-			CopyMemory(encSyskey, &(samRegEntries[i]->f[0x80]), 16);
+			CopyMemory(encSyskey, &samRegEntries[i]->f[0x80], 16);
 
 			MD5 hash;
 
@@ -313,7 +313,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			dec.ProcessData(sysKey, encSyskey, 16);
 
 			BYTE encNTLMKey[16] = {};
-			CopyMemory(encNTLMKey, &(samRegEntries[i]->v[offset + 0x4]), 16);
+			CopyMemory(encNTLMKey, &samRegEntries[i]->v[offset + 0x4], 16);
 
 			BYTE aux[4] = {};
 			for (int i = 3; i >= 0; i--) {
