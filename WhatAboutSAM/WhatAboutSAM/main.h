@@ -29,6 +29,6 @@ typedef struct _sam {
 
 void getSAM(PSAM samRegEntries[], PULONG size);
 void getClasses(PSAM samRegEntry);
-void getBootKey(PSAM samRegEntry, PLONG bootKeyRet);
+void getBootKey(PSAM samRegEntry, PBYTE bootKeyRet);
 void strToKey(PBYTE s, PBYTE keyRet);
 void decryptSAM(PSAM samRegEntries[], int entries);
