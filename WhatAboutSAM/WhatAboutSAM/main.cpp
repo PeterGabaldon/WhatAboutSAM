@@ -395,77 +395,24 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		}
 
 		/* TODO: REFACTOR THIS */
-		BYTE des_str_1[7] = {};
-		int j = 0;
-		for (int i = 3; i >= 0; i--) {
-			CHAR aux[3] = {};
-			aux[0] = samRegEntries[i]->rid[i * 2];
-			aux[1] = samRegEntries[i]->rid[i * 2 + 1];
+		BYTE desStr1[7] = {};
+		getDESStr1(samRegEntries[i], desStr1);
 
-			PCHAR stop;
-
-			des_str_1[j] = strtoul(aux, &stop, 16);
-			j++;
-		}
-		j = 4;
-		for (int i = 3; i >= 1; i--) {
-			int j = 4;
-			CHAR aux[3] = {};
-			aux[0] = samRegEntries[i]->rid[i * 2];
-			aux[1] = samRegEntries[i]->rid[i * 2 + 1];
-
-			PCHAR stop;
-
-			des_str_1[j] = strtoul(aux, &stop, 16);
-			j++;
-		}
-
-		BYTE des_str_2[7] = {};
-		CHAR aux[3] = {};
-		aux[0] = samRegEntries[0]->rid[0 * 2];
-		aux[1] = samRegEntries[0]->rid[0 * 2 + 1];
-
-		PCHAR stop;
-
-		des_str_2[0] = strtoul(aux, &stop, 16);
-		
-		j = 1;
-		for (int i = 3; i >= 0; i--) {
-			CHAR aux[3] = {};
-			aux[0] = samRegEntries[i]->rid[i * 2];
-			aux[1] = samRegEntries[i]->rid[i * 2 + 1];
-
-			PCHAR stop;
-
-			des_str_2[j] = strtoul(aux, &stop, 16);
-			j++;
-		}
-
-		j = 5;
-		for (int i = 3; i >= 2; i--) {
-			CHAR aux[3] = {};
-			aux[0] = samRegEntries[i]->rid[i * 2];
-			aux[1] = samRegEntries[i]->rid[i * 2 + 1];
-
-			PCHAR stop;
-
-			des_str_2[j] = strtoul(aux, &stop, 16);
-			j++;
-		}
-		/**/
+		BYTE desStr2[7] = {};
+		getDESStr2(samRegEntries[i], desStr2);
 
 		BYTE desKey1[8] = {};
 		BYTE desKey2[8] = {};
 		// desKey1IV = desKey1
 		// desKey2IV = desKey2
-		strToKey(des_str_1, desKey1);
-		strToKey(des_str_2, desKey2);
+		strToKey(desStr1, desKey1);
+		strToKey(desStr2, desKey2);
 
 		ECB_Mode< DES >::Decryption desD;
 		desD.SetKey(desKey1, 8);
 
-		BYTE encNTLM1[16] = {};
-		BYTE encNTLM2[16] = {};
+		BYTE encNTLM1[8] = {};
+		BYTE encNTLM2[8] = {};
 		CopyMemory(encNTLM1, encNTLM, 8);
 		CopyMemory(encNTLM2, encNTLM + 0x8, 8);
 
@@ -512,23 +459,23 @@ void strToKey(PBYTE s, PBYTE keyRet) {
 
 	BYTE key[8] = {};
 
-	key[0] = s[0] << 1;
-	key[1] = ((s[0] & 0x1) >> 6) | (s[1] << 2);
-	key[2] = ((s[1] & 0x3) >> 5) | (s[2] << 3);
-	key[3] = ((s[2] & 0x7) >> 4) | (s[3] << 4);
-	key[4] = ((s[3] & 0xf) >> 3) | (s[4] << 5);
-	key[5] = ((s[4] & 0x1f) >> 2) | (s[5] << 6);
-	key[6] = ((s[5] & 0x3f) >> 1) | (s[6] << 7);
+	key[0] = s[0] >> 1;
+	key[1] = ((s[0] & 0x1) << 6) | (s[1] >> 2);
+	key[2] = ((s[1] & 0x3) << 5) | (s[2] >> 3);
+	key[3] = ((s[2] & 0x7) << 4) | (s[3] >> 4);
+	key[4] = ((s[3] & 0xf) << 3) | (s[4] >> 5);
+	key[5] = ((s[4] & 0x1f) << 2) | (s[5] >> 6);
+	key[6] = ((s[5] & 0x3f) << 1) | (s[6] >> 7);
 	key[7] = s[6] & 0x7f;
 
-	key[0] = oddParity[(key[0] >> 1)];
-	key[1] = oddParity[(key[1] >> 1)];
-	key[2] = oddParity[(key[2] >> 1)];
-	key[3] = oddParity[(key[3] >> 1)];
-	key[4] = oddParity[(key[4] >> 1)];
-	key[5] = oddParity[(key[5] >> 1)];
-	key[6] = oddParity[(key[6] >> 1)];
-	key[7] = oddParity[(key[7] >> 1)];
+	key[0] = oddParity[(key[0] << 1)];
+	key[1] = oddParity[(key[1] << 1)];
+	key[2] = oddParity[(key[2] << 1)];
+	key[3] = oddParity[(key[3] << 1)];
+	key[4] = oddParity[(key[4] << 1)];
+	key[5] = oddParity[(key[5] << 1)];
+	key[6] = oddParity[(key[6] << 1)];
+	key[7] = oddParity[(key[7] << 1)];
 
 	CopyMemory(keyRet, key, 8);
 
@@ -610,7 +557,39 @@ void getBootKey(PSAM samRegEntry, PBYTE bootKeyRet) {
 
 		bootKey[i] = strtoul(auxStr, &end, 16);
 	}
-	memcpy(bootKeyRet, bootKey, 16);
+	CopyMemory(bootKeyRet, bootKey, 16);
+}
+
+void getDESStr1(PSAM samRegEntry, PBYTE desStr1Ret) {
+	LONG magics[7] = { 3,2,1,0,3,2,1 };
+	BYTE desStr1[7] = {};
+	for (int i = 0; i < 7; i++) {
+		CHAR auxStr[3] = {};
+
+		PCHAR end;
+
+		auxStr[0] = samRegEntry->rid[magics[i] * 2];
+		auxStr[1] = samRegEntry->rid[magics[i] * 2 + 1];
+
+		desStr1[i] = strtoul(auxStr, &end, 16);
+	}
+	CopyMemory(desStr1Ret, desStr1, 7);
+}
+
+void getDESStr2(PSAM samRegEntry, PBYTE desStr2Ret) {
+	LONG magics[7] = { 0,3,2,1,0,3,2 };
+	BYTE desStr2[7] = {};
+	for (int i = 0; i < 7; i++) {
+		CHAR auxStr[3] = {};
+
+		PCHAR end;
+
+		auxStr[0] = samRegEntry->rid[magics[i] * 2];
+		auxStr[1] = samRegEntry->rid[magics[i] * 2 + 1];
+
+		desStr2[i] = strtoul(auxStr, &end, 16);
+	}
+	CopyMemory(desStr2Ret, desStr2, 7);
 }
 
 int main(int argc, char** argv) {

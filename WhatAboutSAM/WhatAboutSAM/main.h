@@ -32,3 +32,5 @@ void getClasses(PSAM samRegEntry);
 void getBootKey(PSAM samRegEntry, PBYTE bootKeyRet);
 void strToKey(PBYTE s, PBYTE keyRet);
 void decryptSAM(PSAM samRegEntries[], int entries);
+void getDESStr1(PSAM samRegEntry, PBYTE desStr1Ret);
+void getDESStr2(PSAM samRegEntry, PBYTE desStr2Ret);
