@@ -27,6 +27,7 @@ using CryptoPP::ECB_Mode;
 using CryptoPP::ArraySource;
 using CryptoPP::StreamTransformationFilter;
 using CryptoPP::ArraySink;
+using CryptoPP::Redirector;
 
 #include "cryptopp/include/md5.h"
 using CryptoPP::MD5;
@@ -296,7 +297,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		getBootKey(samRegEntries[i], bootKey);
 
 		BYTE encNTLM[16] = {};
-		CopyMemory(encNTLM, &samRegEntries[i]->v[offset + 0x18], 16);
+		
 
 		if (samRegEntries[i]->v[0xAC] == 0x38) {
 			BYTE encSyskey[16] = {};
@@ -305,28 +306,32 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			CopyMemory(encSyskey, &samRegEntries[i]->f[0x88], 16);
 			CopyMemory(encSyskeyIV, &samRegEntries[i]->f[0x78], 16);
 
-			BYTE sysKey[16] = {};
-
 			CBC_Mode< AES >::Decryption d;
-			d.SetKeyWithIV((BYTE*)&bootKey, 16, encSyskeyIV);
-
-			ArraySource s(encSyskey, true,
+			d.SetKeyWithIV(bootKey, 16, encSyskeyIV);
+			
+			BYTE sysKey[16] = {};
+			ArraySink rs(sysKey, 16);
+			ArraySource s(encSyskey, 16, true,
 				new StreamTransformationFilter(d,
-					new ArraySink(sysKey, 16)
+					new Redirector(rs),
+					StreamTransformationFilter::NO_PADDING
 				)
 			);
 
 			BYTE encNTLMIV[16] = {};
 			CopyMemory(encNTLMIV, &samRegEntries[i]->v[offset + 0x8], 16);
-			// encNTLMKey = encNTLMrecovered
+			CopyMemory(encNTLM, &samRegEntries[i]->v[offset + 0x18], 16);
+			// encNTLMKey = sysKey
 
 			CBC_Mode< AES >::Decryption d2;
 			d2.SetKeyWithIV(sysKey, 16, encNTLMIV);
 
 			BYTE encNTLMrecovered[16] = {};
+			ArraySink rs2(encNTLMrecovered, 16);
 			ArraySource s2(encNTLM, true,
 				new StreamTransformationFilter(d2,
-					new ArraySink(encNTLMrecovered, 16)
+					new Redirector(rs2),
+					StreamTransformationFilter::NO_PADDING
 				)
 			);
 
@@ -353,6 +358,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 			BYTE encNTLMKey[16] = {};
 			CopyMemory(encNTLMKey, &samRegEntries[i]->v[offset + 0x4], 16);
+			CopyMemory(encNTLM, &samRegEntries[i]->v[offset + 0x4], 16);
 
 			BYTE aux[4] = {};
 			int j = 0;
@@ -462,18 +468,22 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		BYTE NTLM1[8] = {};
 		BYTE NTLM2[8] = {};
 
+		ArraySink rs(NTLM1, 8);
 		ArraySource s(encNTLM1, true,
 			new StreamTransformationFilter(desD,
-				new ArraySink(NTLM1, 8)
+				new Redirector(rs),
+				StreamTransformationFilter::NO_PADDING
 			)
 		);
 
 		ECB_Mode< DES >::Decryption desD2;
 		desD2.SetKey(desKey2, 8);
 
+		ArraySink rs2(NTLM2, 8);
 		ArraySource s2(encNTLM2, true,
 			new StreamTransformationFilter(desD2,
-				new ArraySink(NTLM2, 8)
+				new Redirector(rs2),
+				StreamTransformationFilter::NO_PADDING
 			)
 		);
 
