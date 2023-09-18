@@ -34,3 +34,5 @@ void strToKey(PBYTE s, PBYTE keyRet);
 void decryptSAM(PSAM samRegEntries[], int entries);
 void getDESStr1(PSAM samRegEntry, PBYTE desStr1Ret);
 void getDESStr2(PSAM samRegEntry, PBYTE desStr2Ret);
+void getAuxSyskey(PSAM samRegEntry, PBYTE auxSyskeyRet);
+void toUpperStr(char* s);

