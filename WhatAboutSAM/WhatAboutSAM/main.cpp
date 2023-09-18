@@ -435,12 +435,12 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		CopyMemory(NTLM + 0x8, NTLM2, 8);
 
 		for (int i = 0; i < 16; i++) {
-			sprintf_s(NTLMstr + i * 2, 32, "%02x", NTLM[i]);
+			snprintf(NTLMstr + (i * 2), 3, "%02x", NTLM[i]);
 		}
 
 		toUpperStr(NTLMstr);
 
-		wprintf(L"User [ %s ] with RID [ %d ] -> ", username, &ridN);
+		wprintf(L"User [ %s ] with RID [ %d ] -> ", username, ridN);
 		printf("NT: %s\n", NTLMstr);
 
 		HeapFree(GetProcessHeap(), 0, username);
