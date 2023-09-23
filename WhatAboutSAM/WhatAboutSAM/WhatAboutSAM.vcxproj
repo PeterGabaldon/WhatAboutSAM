@@ -144,6 +144,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="proxyNtCalls.cpp" />
     <ClCompile Include="proxyNtCalls.h" />
   </ItemGroup>
   <ItemGroup>

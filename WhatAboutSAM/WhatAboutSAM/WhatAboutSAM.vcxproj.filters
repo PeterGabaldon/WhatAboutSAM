@@ -21,6 +21,9 @@
     <ClCompile Include="proxyNtCalls.h">
       <Filter>Header Files</Filter>
     </ClCompile>
+    <ClCompile Include="proxyNtCalls.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Resource Include="res\Manifest.res">
