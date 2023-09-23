@@ -32,24 +32,24 @@ typedef struct _NTENUMERATEKEY_ARGS {
     KEY_INFORMATION_CLASS KeyInformationClass;                      // r8 
     PVOID KeyInformation;                                           // r9
     ULONG Length;                                                   // RSP + 0x28
-    PULONG ResultLength;                                            // RSP + 0x30
+    PULONG ResultLength;                                            // RSP + 0x2c
 } NTENUMERATEKEY_ARGS, * PNTENUMERATEKEY_ARGS;
 
 typedef struct _NTQUERYVALUEKEY_ARGS {
     UINT_PTR pNtQueryValueKey;                                      // pointer to NtQueryValueKey - rax
     HANDLE KeyHandle;                                               // rcx
     PUNICODE_STRING ValueName;                                      // rdx
-    KEY_INFORMATION_CLASS KeyValueInformationClass;                 // r8 
+    KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass;           // r8 
     PVOID KeyValueInformation;                                      // r9
     ULONG Length;                                                   // RSP + 0x28
-    PULONG ResultLength;                                            // RSP + 0x30
+    PULONG ResultLength;                                            // RSP + 0x2c
 } NTQUERYVALUEKEY_ARGS, * PNTQUERYVALUEKEY_ARGS;
 
 typedef struct _NTENUMERATEVALUEKEY_ARGS {
     UINT_PTR pNtEnumerateValueKey;                                  // pointer to NtEnumerateValueKey - rax
     HANDLE KeyHandle;                                               // rcx
     ULONG Index;                                                    // rdx
-    KEY_INFORMATION_CLASS KeyValueInformationClass;                 // r8 
+    KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass;           // r8 
     PVOID KeyValueInformation;                                      // r9
     ULONG Length;                                                   // RSP + 0x28
     PULONG ResultLength;                                            // RSP + 0x30
