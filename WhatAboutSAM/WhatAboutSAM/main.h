@@ -20,10 +20,6 @@ typedef NTSTATUS(WINAPI* myNtClose)(HANDLE);
 
 typedef VOID(WINAPI* myRtlInitUnicodeString)(PUNICODE_STRING, __drv_aliasesMem PCWSTR);
 
-typedef NTSTATUS(NTAPI* myTpAllocWork)(PTP_WORK*, PTP_WORK_CALLBACK, PVOID, PTP_CALLBACK_ENVIRON);
-typedef VOID(NTAPI* myTpPostWork)(PTP_WORK);
-typedef VOID(NTAPI* myTpReleaseWork)(PTP_WORK);
-
 typedef struct _sam {
 	WCHAR rid[MAX_KEY_LENGTH];
 	BYTE v[MAX_KEY_VALUE_LENGTH];
