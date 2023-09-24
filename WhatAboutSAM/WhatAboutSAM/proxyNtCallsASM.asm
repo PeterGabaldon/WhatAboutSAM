@@ -76,5 +76,5 @@ WorkCallbackRtlInitUnicodeString:
     mov rbx, rdx                ; backing up the struct as we are going to stomp rdx
     mov rax, [rbx]              ; RtlInitUnicodeString
     mov rcx, [rbx + 0x8]        ; UINT_PTR pRltInitUnicodeString
-    mov rcx, [rbx + 0x10]        ; PUNICODE_STRING DestinationString
+    mov rdx, [rbx + 0x10]       ; PUNICODE_STRING DestinationString
     jmp rax
