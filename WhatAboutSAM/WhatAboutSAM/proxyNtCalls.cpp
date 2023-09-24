@@ -8,11 +8,17 @@ myTpAllocWork pMyTpAllocWork = (myTpAllocWork)myGetProcAddress((PCHAR)"ntdll.dll
 myTpPostWork pMyTpPostWork = (myTpPostWork)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"TpPostWork");
 myTpReleaseWork pMyTpReleaseWork = (myTpReleaseWork)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"TpReleaseWork");
 
-NTSTATUS proxyNtOpenKey (FARPROC pNtOpenKey, PHANDLE KeyHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes) {
-	extern VOID CALLBACK WorkCallbackNtOpenKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
+extern "C" VOID CALLBACK WorkCallbackNtOpenKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
+extern "C" VOID CALLBACK WorkCallbackNtQueryKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
+extern "C" VOID CALLBACK WorkCallbackNtEnumerateKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
+extern "C" VOID CALLBACK WorkCallbackNtQueryValueKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
+extern "C" VOID CALLBACK WorkCallbackNtEnumerateValueKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
+extern "C" VOID CALLBACK WorkCallbackNtCloseKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
+extern "C" VOID CALLBACK WorkCallbackRtlInitUnicodeString(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
 
+NTSTATUS proxyNtOpenKey (PHANDLE KeyHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes) {
 	NTOPENKEY_ARGS ntOpenKeyArgs = {};
-	ntOpenKeyArgs.pNtOpenKey = pNtOpenKey;
+	ntOpenKeyArgs.pNtOpenKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtOpenKey");
 	ntOpenKeyArgs.KeyHandle = KeyHandle;
 	ntOpenKeyArgs.DesiredAccess = DesiredAccess;
 	ntOpenKeyArgs.ObjectAttributes = ObjectAttributes;
@@ -25,11 +31,9 @@ NTSTATUS proxyNtOpenKey (FARPROC pNtOpenKey, PHANDLE KeyHandle, ACCESS_MASK Desi
 	return 0;
 }
 
-NTSTATUS proxyNtQueryKey(FARPROC pNtQueryKey, HANDLE KeyHandle, KEY_INFORMATION_CLASS KeyInformationClass, PVOID KeyInformation, ULONG Length, PULONG ResultLength) {
-	extern VOID CALLBACK WorkCallbackNtQueryKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
-
+NTSTATUS proxyNtQueryKey(HANDLE KeyHandle, KEY_INFORMATION_CLASS KeyInformationClass, PVOID KeyInformation, ULONG Length, PULONG ResultLength) {
 	NTQUERYKEY_ARGS ntQueryKeyArgs = {};
-	ntQueryKeyArgs.pNtQueryKey = pNtQueryKey;
+	ntQueryKeyArgs.pNtQueryKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryKey");
 	ntQueryKeyArgs.KeyHandle = KeyHandle;
 	ntQueryKeyArgs.KeyInformationClass = KeyInformationClass;
 	ntQueryKeyArgs.KeyInformation = KeyInformation;
@@ -44,11 +48,9 @@ NTSTATUS proxyNtQueryKey(FARPROC pNtQueryKey, HANDLE KeyHandle, KEY_INFORMATION_
 	return 0;
 }
 
-NTSTATUS proxyNtEnumerateKey(FARPROC pNtEnumerateKey, HANDLE KeyHandle, ULONG Index, KEY_INFORMATION_CLASS KeyInformationClass, PVOID KeyInformation, ULONG Length, PULONG ResultLength) {
-	extern VOID CALLBACK WorkCallbackNtEnumerateKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
-
+NTSTATUS proxyNtEnumerateKey(HANDLE KeyHandle, ULONG Index, KEY_INFORMATION_CLASS KeyInformationClass, PVOID KeyInformation, ULONG Length, PULONG ResultLength) {
 	NTENUMERATEKEY_ARGS ntEnumerateKeyArgs = {};
-	ntEnumerateKeyArgs.pNtEnumerateKey = pNtEnumerateKey;
+	ntEnumerateKeyArgs.pNtEnumerateKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateKey");
 	ntEnumerateKeyArgs.KeyHandle = KeyHandle;
 	ntEnumerateKeyArgs.Index = Index;
 	ntEnumerateKeyArgs.KeyInformationClass = KeyInformationClass;
@@ -64,11 +66,9 @@ NTSTATUS proxyNtEnumerateKey(FARPROC pNtEnumerateKey, HANDLE KeyHandle, ULONG In
 	return 0;
 }
 
-NTSTATUS proxyNtQueryValueKey(FARPROC pNtQueryValueKey, HANDLE KeyHandle, PUNICODE_STRING ValueName, KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass, PVOID KeyValueInformation, ULONG Length, PULONG ResultLength) {
-	extern VOID CALLBACK WorkCallbackNtQueryValueKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
-
+NTSTATUS proxyNtQueryValueKey(HANDLE KeyHandle, PUNICODE_STRING ValueName, KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass, PVOID KeyValueInformation, ULONG Length, PULONG ResultLength) {
 	NTQUERYVALUEKEY_ARGS ntQueryValueKeyArgs = {};
-	ntQueryValueKeyArgs.pNtQueryValueKey = pNtQueryValueKey;
+	ntQueryValueKeyArgs.pNtQueryValueKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryValueKey");
 	ntQueryValueKeyArgs.KeyHandle = KeyHandle;
 	ntQueryValueKeyArgs.ValueName = ValueName;
 	ntQueryValueKeyArgs.KeyValueInformationClass = KeyValueInformationClass;
@@ -84,11 +84,9 @@ NTSTATUS proxyNtQueryValueKey(FARPROC pNtQueryValueKey, HANDLE KeyHandle, PUNICO
 	return 0;
 }
 
-NTSTATUS proxyNtEnumerateValueKey(FARPROC pNtEnumerateValueKey, HANDLE KeyHandle, ULONG Index, KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass, PVOID KeyValueInformation, ULONG Length, PULONG ResultLength) {
-	extern VOID CALLBACK WorkCallbackNtEnumerateValueKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
-
+NTSTATUS proxyNtEnumerateValueKey(HANDLE KeyHandle, ULONG Index, KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass, PVOID KeyValueInformation, ULONG Length, PULONG ResultLength) {
 	NTENUMERATEVALUEKEY_ARGS ntEnumerateValueKeyArgs = {};
-	ntEnumerateValueKeyArgs.pNtEnumerateValueKey = pNtEnumerateValueKey;
+	ntEnumerateValueKeyArgs.pNtEnumerateValueKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateValueKey");
 	ntEnumerateValueKeyArgs.KeyHandle = KeyHandle;
 	ntEnumerateValueKeyArgs.Index = Index;
 	ntEnumerateValueKeyArgs.KeyValueInformationClass = KeyValueInformationClass;
@@ -104,11 +102,9 @@ NTSTATUS proxyNtEnumerateValueKey(FARPROC pNtEnumerateValueKey, HANDLE KeyHandle
 	return 0;
 }
 
-NTSTATUS proxyNtCloseKey(FARPROC pNtCloseKey, HANDLE KeyHandle) {
-	extern VOID CALLBACK WorkCallbackNtCloseKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
-
+NTSTATUS proxyNtCloseKey(HANDLE KeyHandle) {
 	NTCLOSE_ARGS ntCloseKeyArgs = {};
-	ntCloseKeyArgs.pNtCloseKey = pNtCloseKey;
+	ntCloseKeyArgs.pNtCloseKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtClose");
 	ntCloseKeyArgs.KeyHandle = KeyHandle;
 
 	PTP_WORK WorkReturn = NULL;
@@ -119,11 +115,9 @@ NTSTATUS proxyNtCloseKey(FARPROC pNtCloseKey, HANDLE KeyHandle) {
 	return 0;
 }
 
-NTSTATUS proxyRtlInitUnicodeString(FARPROC pRtlInitUnicodeString, PUNICODE_STRING DestinationString, __drv_aliasesMem PCWSTR SourceString) {
-	extern VOID CALLBACK WorkCallbackRtlInitUnicodeString(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
-
+VOID proxyRtlInitUnicodeString(PUNICODE_STRING DestinationString, __drv_aliasesMem PCWSTR SourceString) {
 	RTLINITUNICODESTRING_ARGS rtlInitUnicodeStringArgs = {};
-	rtlInitUnicodeStringArgs.pRltInitUnicodeString = pRtlInitUnicodeString;
+	rtlInitUnicodeStringArgs.pRltInitUnicodeString = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"RtlInitUnicodeString");
 	rtlInitUnicodeStringArgs.DestinationString = DestinationString;
 	rtlInitUnicodeStringArgs.SourceString = SourceString;
 
@@ -131,6 +125,4 @@ NTSTATUS proxyRtlInitUnicodeString(FARPROC pRtlInitUnicodeString, PUNICODE_STRIN
 	pMyTpAllocWork(&WorkReturn, (PTP_WORK_CALLBACK)WorkCallbackRtlInitUnicodeString, &rtlInitUnicodeStringArgs, NULL);
 	pMyTpPostWork(WorkReturn);
 	pMyTpReleaseWork(WorkReturn);
-
-	return 0;
 }

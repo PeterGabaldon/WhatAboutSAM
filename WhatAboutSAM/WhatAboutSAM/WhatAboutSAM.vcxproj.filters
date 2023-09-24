@@ -615,8 +615,8 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="proxyNtCalls.asm">
+    <NASM Include="proxyNtCallsASM.asm">
       <Filter>Source Files</Filter>
-    </None>
+    </NASM>
   </ItemGroup>
 </Project>

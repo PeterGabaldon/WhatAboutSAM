@@ -9,6 +9,8 @@
 #define MAX_SAM_ENTRIES 100
 #define STR_TO_KEY_LEN 8
 
+#define PROXY_NT_CALLS	1
+
 typedef FARPROC(WINAPI* myMessageBox)(HWND, LPCTSTR, LPCTSTR, UINT);
 
 typedef NTSTATUS(WINAPI* myNtOpenKey)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
@@ -19,6 +21,7 @@ typedef NTSTATUS(WINAPI* myNtEnumerateValueKey)(HANDLE, ULONG, KEY_VALUE_INFORMA
 typedef NTSTATUS(WINAPI* myNtClose)(HANDLE);
 
 typedef VOID(WINAPI* myRtlInitUnicodeString)(PUNICODE_STRING, __drv_aliasesMem PCWSTR);
+
 
 typedef struct _sam {
 	WCHAR rid[MAX_KEY_LENGTH];

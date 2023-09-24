@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "main.h"
+#include "proxyNtCalls.h"
 
 #include "cryptopp/include/aes.h"
 using CryptoPP::AES;
@@ -607,14 +608,39 @@ void toUpperStr(char* s) {
 }
 
 int main(int argc, char** argv) {
-	pMyMessageBox = (myMessageBox)myGetProcAddress((PCHAR)"user32.dll", (PCHAR)"MessageBoxA");
-	pMyNtOpenKey = (myNtOpenKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtOpenKey");
-	pMyNtQueryKey = (myNtQueryKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryKey");
-	pMyNtEnumerateKey = (myNtEnumerateKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateKey");
-	pMyNtQueryValueKey = (myNtQueryValueKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryValueKey");
-	pMyNtEnumerateValueKey = (myNtEnumerateValueKey)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateValueKey");
-	pMyNtClose = (myNtClose)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtClose");
-	pMyRtlInitUnicodeString = (myRtlInitUnicodeString)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"RtlInitUnicodeString");
+#ifdef PROXY_NT_CALLS
+
+pMyNtOpenKey = proxyNtOpenKey;
+pMyNtQueryKey = proxyNtQueryKey;
+pMyNtEnumerateKey = proxyNtEnumerateKey;
+pMyNtQueryValueKey = proxyNtQueryValueKey;
+pMyNtEnumerateValueKey = proxyNtEnumerateValueKey;
+pMyNtClose = proxyNtCloseKey;
+pMyRtlInitUnicodeString = proxyRtlInitUnicodeString;
+
+#endif // PROXY_NT_CALLS
+#ifndef PROXY_NT_CALLS
+
+FARPROC auxPMyNtOpenKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtOpenKey");
+FARPROC auxPMyNtQueryKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryKey");
+FARPROC auxPMyNtEnumerateKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateKey");
+FARPROC auxPMyNtQueryValueKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryValueKey");
+FARPROC auxPMyNtEnumerateValueKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateValueKey");
+FARPROC auxPMyNtClose = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtClose");
+FARPROC auxPMyRtlInitUnicodeString = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"RtlInitUnicodeString");
+
+pMyNtOpenKey = (myNtOpenKey)auxPMyNtOpenKey;
+pMyNtQueryKey = (myNtQueryKey)auxPMyNtQueryKey;
+pMyNtEnumerateKey = (myNtEnumerateKey)auxPMyNtEnumerateKey;
+pMyNtQueryValueKey = (myNtQueryValueKey)auxPMyNtQueryValueKey;
+pMyNtEnumerateValueKey = (myNtEnumerateValueKey)auxPMyNtEnumerateValueKey;
+pMyNtClose = myNtClose(auxPMyNtClose);
+pMyRtlInitUnicodeString = (myRtlInitUnicodeString)auxPMyRtlInitUnicodeString;
+	
+#endif // !PROXY_NT_CALLS
+
+FARPROC auxPMyMessageBox = myGetProcAddress((PCHAR)"user32.dll", (PCHAR)"MessageBoxA");
+pMyMessageBox = (myMessageBox)auxPMyMessageBox;
 
 	if (pMyMessageBox != NULL) {
 		pMyMessageBox(NULL, (LPCTSTR)"Wait", (LPCTSTR)"Debug Wait", MB_OK);
