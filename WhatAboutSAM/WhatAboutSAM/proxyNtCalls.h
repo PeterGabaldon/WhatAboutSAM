@@ -1,4 +1,4 @@
-// Thanks Paranoid Ninja: https://0xdarkvortex.dev/proxying-dll-loads-for-hiding-etwti-stack-tracing/
+// Credits to Paranoid Ninja: https://0xdarkvortex.dev/proxying-dll-loads-for-hiding-etwti-stack-tracing/
 // https://0xdarkvortex.dev/hiding-in-plainsight/
 
 #pragma once
@@ -9,8 +9,7 @@
 
 #include "ntdll.h"
 
-#define THREAD_WAIT INFINITE
-//#define THREAD_WAIT 3000
+#define THREAD_WAIT 100
 
 typedef NTSTATUS(NTAPI* myTpAllocWork)(PTP_WORK*, PTP_WORK_CALLBACK, PVOID, PTP_CALLBACK_ENVIRON);
 typedef VOID(NTAPI* myTpPostWork)(PTP_WORK);
