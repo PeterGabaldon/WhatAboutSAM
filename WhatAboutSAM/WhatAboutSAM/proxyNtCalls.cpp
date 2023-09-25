@@ -16,7 +16,7 @@ extern "C" VOID CALLBACK WorkCallbackNtEnumerateValueKey(PTP_CALLBACK_INSTANCE I
 extern "C" VOID CALLBACK WorkCallbackNtCloseKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
 extern "C" VOID CALLBACK WorkCallbackRtlInitUnicodeString(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
 
-NTSTATUS proxyNtOpenKey (PHANDLE KeyHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes) {
+NTSTATUS proxyNtOpenKey(PHANDLE KeyHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes) {
 	NTOPENKEY_ARGS ntOpenKeyArgs = {};
 	ntOpenKeyArgs.pNtOpenKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtOpenKey");
 	ntOpenKeyArgs.KeyHandle = KeyHandle;
@@ -27,6 +27,8 @@ NTSTATUS proxyNtOpenKey (PHANDLE KeyHandle, ACCESS_MASK DesiredAccess, POBJECT_A
 	pMyTpAllocWork(&WorkReturn, (PTP_WORK_CALLBACK)WorkCallbackNtOpenKey, &ntOpenKeyArgs, NULL);
 	pMyTpPostWork(WorkReturn);
 	pMyTpReleaseWork(WorkReturn);
+
+	WaitForSingleObject(GetCurrentProcess(), THREAD_WAIT);
 
 	return 0;
 }
@@ -44,6 +46,8 @@ NTSTATUS proxyNtQueryKey(HANDLE KeyHandle, KEY_INFORMATION_CLASS KeyInformationC
 	pMyTpAllocWork(&WorkReturn, (PTP_WORK_CALLBACK)WorkCallbackNtQueryKey, &ntQueryKeyArgs, NULL);
 	pMyTpPostWork(WorkReturn);
 	pMyTpReleaseWork(WorkReturn);
+
+	WaitForSingleObject(GetCurrentProcess(), THREAD_WAIT);
 
 	return 0;
 }
@@ -63,6 +67,8 @@ NTSTATUS proxyNtEnumerateKey(HANDLE KeyHandle, ULONG Index, KEY_INFORMATION_CLAS
 	pMyTpPostWork(WorkReturn);
 	pMyTpReleaseWork(WorkReturn);
 
+	WaitForSingleObject(GetCurrentProcess(), THREAD_WAIT);
+
 	return 0;
 }
 
@@ -80,6 +86,8 @@ NTSTATUS proxyNtQueryValueKey(HANDLE KeyHandle, PUNICODE_STRING ValueName, KEY_V
 	pMyTpAllocWork(&WorkReturn, (PTP_WORK_CALLBACK)WorkCallbackNtQueryValueKey, &ntQueryValueKeyArgs, NULL);
 	pMyTpPostWork(WorkReturn);
 	pMyTpReleaseWork(WorkReturn);
+
+	WaitForSingleObject(GetCurrentProcess(), THREAD_WAIT);
 
 	return 0;
 }
@@ -99,6 +107,8 @@ NTSTATUS proxyNtEnumerateValueKey(HANDLE KeyHandle, ULONG Index, KEY_VALUE_INFOR
 	pMyTpPostWork(WorkReturn);
 	pMyTpReleaseWork(WorkReturn);
 
+	WaitForSingleObject(GetCurrentProcess(), THREAD_WAIT);
+
 	return 0;
 }
 
@@ -111,6 +121,8 @@ NTSTATUS proxyNtCloseKey(HANDLE KeyHandle) {
 	pMyTpAllocWork(&WorkReturn, (PTP_WORK_CALLBACK)WorkCallbackNtCloseKey, &ntCloseKeyArgs, NULL);
 	pMyTpPostWork(WorkReturn);
 	pMyTpReleaseWork(WorkReturn);
+
+	WaitForSingleObject(GetCurrentProcess(), THREAD_WAIT);
 
 	return 0;
 }
@@ -125,4 +137,6 @@ VOID proxyRtlInitUnicodeString(PUNICODE_STRING DestinationString, __drv_aliasesM
 	pMyTpAllocWork(&WorkReturn, (PTP_WORK_CALLBACK)WorkCallbackRtlInitUnicodeString, &rtlInitUnicodeStringArgs, NULL);
 	pMyTpPostWork(WorkReturn);
 	pMyTpReleaseWork(WorkReturn);
+
+	WaitForSingleObject(GetCurrentProcess(), THREAD_WAIT);
 }

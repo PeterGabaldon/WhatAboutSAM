@@ -616,8 +616,8 @@ pMyNtEnumerateKey = proxyNtEnumerateKey;
 pMyNtQueryValueKey = proxyNtQueryValueKey;
 pMyNtEnumerateValueKey = proxyNtEnumerateValueKey;
 pMyNtClose = proxyNtCloseKey;
-//pMyRtlInitUnicodeString = proxyRtlInitUnicodeString;
-pMyRtlInitUnicodeString = (myRtlInitUnicodeString)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"RtlInitUnicodeString");
+pMyRtlInitUnicodeString = proxyRtlInitUnicodeString;
+
 #endif // PROXY_NT_CALLS
 #ifndef PROXY_NT_CALLS
 

@@ -9,6 +9,9 @@
 
 #include "ntdll.h"
 
+#define THREAD_WAIT INFINITE
+//#define THREAD_WAIT 3000
+
 typedef NTSTATUS(NTAPI* myTpAllocWork)(PTP_WORK*, PTP_WORK_CALLBACK, PVOID, PTP_CALLBACK_ENVIRON);
 typedef VOID(NTAPI* myTpPostWork)(PTP_WORK);
 typedef VOID(NTAPI* myTpReleaseWork)(PTP_WORK);
