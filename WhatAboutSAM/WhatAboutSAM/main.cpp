@@ -60,16 +60,19 @@ FARPROC myGetProcAddress(DWORD moduleHash, DWORD exportHash) {
 	{
 		PLDR_DATA_TABLE_ENTRY dllEntry = CONTAINING_RECORD(listCurrent, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
 		DWORD dllNameLength = WideCharToMultiByte(CP_ACP, 0, dllEntry->FullDllName.Buffer, dllEntry->FullDllName.Length, NULL, 0, NULL, NULL);
-		PCHAR dllName = (PCHAR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dllNameLength);
-		WideCharToMultiByte(CP_ACP, 0, dllEntry->FullDllName.Buffer, dllEntry->FullDllName.Length, dllName, dllNameLength, NULL, NULL);
-		CharUpperA(dllName);
-		if (HashString2A(dllName) == moduleHash)
+		PCHAR dllPath = (PCHAR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dllNameLength);
+		WideCharToMultiByte(CP_ACP, 0, dllEntry->FullDllName.Buffer, dllEntry->FullDllName.Length, dllPath, dllNameLength, NULL, NULL);
+		CharUpperA(dllPath);
+
+		CHAR * last = strrchr(dllPath, '\\');
+		last++;
+		if (HashString2A(last) == moduleHash)
 		{
 			moduleAddress = dllEntry->DllBase;
-			HeapFree(GetProcessHeap(), 0, dllName);
+			HeapFree(GetProcessHeap(), 0, dllPath);
 			break;
 		}
-		HeapFree(GetProcessHeap(), 0, dllName);
+		HeapFree(GetProcessHeap(), 0, dllPath);
 		listCurrent = listCurrent->Flink;
 	} while (listCurrent != listHead);
 
