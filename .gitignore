@@ -397,4 +397,4 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
-WhatAboutSAM/WhatAboutSAM/cryptopp/cryptlib.lib
+#WhatAboutSAM/WhatAboutSAM/cryptopp/cryptlib.lib
