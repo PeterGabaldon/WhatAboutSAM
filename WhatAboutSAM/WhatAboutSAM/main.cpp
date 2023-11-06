@@ -50,11 +50,7 @@ myRtlInitUnicodeString pMyRtlInitUnicodeString;
 
 
 // Get Address from Export in module by walking PEB. Thus, not calling GetModuleHandle + GetProcAddress.
-FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName) {
-	PCHAR moduleMayus = (PCHAR)HeapAlloc(GetProcessHeap(), 0, strlen(moduleName) + 1);
-	strncpy_s(moduleMayus, strlen(moduleName) + 1, moduleName, _TRUNCATE);
-	CharUpperA(moduleMayus);
-
+FARPROC myGetProcAddress(DWORD moduleHash, DWORD exportHash) {
 	PPEB pPEB = (PPEB)__readgsqword(0x60);
 	PPEB_LDR_DATA pLoaderData = pPEB->Ldr;
 	PLIST_ENTRY listHead = &pLoaderData->InMemoryOrderModuleList;
@@ -67,7 +63,7 @@ FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName) {
 		PCHAR dllName = (PCHAR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dllNameLength);
 		WideCharToMultiByte(CP_ACP, 0, dllEntry->FullDllName.Buffer, dllEntry->FullDllName.Length, dllName, dllNameLength, NULL, NULL);
 		CharUpperA(dllName);
-		if (strstr(dllName, moduleMayus))
+		if (HashString2A(dllName) == moduleHash)
 		{
 			moduleAddress = dllEntry->DllBase;
 			HeapFree(GetProcessHeap(), 0, dllName);
@@ -93,13 +89,11 @@ FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName) {
 
 	for (unsigned int i = 0; i < pExportDirectory->NumberOfNames; ++i) {
 		PCSTR pFunctionName = (PSTR)((PBYTE)moduleAddress + pAddressOfNames[i]);
-		if (strcmp(pFunctionName, exportName) == 0)
+		if (HashString2A(pFunctionName) == exportHash)
 		{
 			found = (FARPROC)((PBYTE)moduleAddress + pAddressOfFunctions[pAddressOfNameOrdinals[i]]);
 		}
 	}
-	HeapFree(GetProcessHeap(), 0, moduleMayus);
-
 	return found;
 }
 
@@ -607,6 +601,17 @@ void toUpperStr(char* s) {
 	}
 }
 
+DWORD HashString2A(LPCSTR String)
+{
+	ULONG Hash = 6485;
+	INT c = 0;
+
+	while (c = *String++)
+		Hash = ((Hash << 5) + Hash) + c;
+
+	return Hash;
+}
+
 int main(int argc, char** argv) {
 #ifdef PROXY_NT_CALLS
 
@@ -621,13 +626,13 @@ pMyRtlInitUnicodeString = proxyRtlInitUnicodeString;
 #endif // PROXY_NT_CALLS
 #ifndef PROXY_NT_CALLS
 
-FARPROC auxPMyNtOpenKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtOpenKey");
-FARPROC auxPMyNtQueryKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryKey");
-FARPROC auxPMyNtEnumerateKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateKey");
-FARPROC auxPMyNtQueryValueKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryValueKey");
-FARPROC auxPMyNtEnumerateValueKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateValueKey");
-FARPROC auxPMyNtClose = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtClose");
-FARPROC auxPMyRtlInitUnicodeString = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"RtlInitUnicodeString");
+FARPROC auxPMyNtOpenKey = myGetProcAddress(ntdlldll_RFDT, NtOpenKey_RFDT);
+FARPROC auxPMyNtQueryKey = myGetProcAddress(ntdlldll_RFDT, NtQueryKey_RFDT);
+FARPROC auxPMyNtEnumerateKey = myGetProcAddress(ntdlldll_RFDT, NtEnumerateKey_RFDT);
+FARPROC auxPMyNtQueryValueKey = myGetProcAddress(ntdlldll_RFDT, NtQueryValueKey_RFDT);
+FARPROC auxPMyNtEnumerateValueKey = myGetProcAddress(ntdlldll_RFDT, NtEnumerateValueKey_RFDT);
+FARPROC auxPMyNtClose = myGetProcAddress(ntdlldll_RFDT, NtClose_RFDT);
+FARPROC auxPMyRtlInitUnicodeString = myGetProcAddress(ntdlldll_RFDT, rtlini);
 
 pMyNtOpenKey = (myNtOpenKey)auxPMyNtOpenKey;
 pMyNtQueryKey = (myNtQueryKey)auxPMyNtQueryKey;
@@ -638,13 +643,6 @@ pMyNtClose = myNtClose(auxPMyNtClose);
 pMyRtlInitUnicodeString = (myRtlInitUnicodeString)auxPMyRtlInitUnicodeString;
 	
 #endif // !PROXY_NT_CALLS
-
-FARPROC auxPMyMessageBox = myGetProcAddress((PCHAR)"user32.dll", (PCHAR)"MessageBoxA");
-pMyMessageBox = (myMessageBox)auxPMyMessageBox;
-
-	if (pMyMessageBox != NULL) {
-		pMyMessageBox(NULL, (LPCTSTR)"Wait", (LPCTSTR)"Debug Wait", MB_OK);
-	}
 
 	// Time to debug as always works at first :D
 	ULONG size;

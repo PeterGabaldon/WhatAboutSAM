@@ -4,9 +4,9 @@
 #include "proxyNtCalls.h"
 #include "main.h"
 
-myTpAllocWork pMyTpAllocWork = (myTpAllocWork)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"TpAllocWork");
-myTpPostWork pMyTpPostWork = (myTpPostWork)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"TpPostWork");
-myTpReleaseWork pMyTpReleaseWork = (myTpReleaseWork)myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"TpReleaseWork");
+myTpAllocWork pMyTpAllocWork = (myTpAllocWork)myGetProcAddress(ntdlldll_RFDT, TpAllocWork_RFDT);
+myTpPostWork pMyTpPostWork = (myTpPostWork)myGetProcAddress(ntdlldll_RFDT, TpPostWork_RFDT);
+myTpReleaseWork pMyTpReleaseWork = (myTpReleaseWork)myGetProcAddress(ntdlldll_RFDT, TpReleaseWork_RFDT);
 
 extern "C" VOID CALLBACK WorkCallbackNtOpenKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
 extern "C" VOID CALLBACK WorkCallbackNtQueryKey(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work);
@@ -18,7 +18,7 @@ extern "C" VOID CALLBACK WorkCallbackRtlInitUnicodeString(PTP_CALLBACK_INSTANCE 
 
 NTSTATUS proxyNtOpenKey(PHANDLE KeyHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes) {
 	NTOPENKEY_ARGS ntOpenKeyArgs = {};
-	ntOpenKeyArgs.pNtOpenKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtOpenKey");
+	ntOpenKeyArgs.pNtOpenKey = myGetProcAddress(ntdlldll_RFDT, NtOpenKey_RFDT);
 	ntOpenKeyArgs.KeyHandle = KeyHandle;
 	ntOpenKeyArgs.DesiredAccess = DesiredAccess;
 	ntOpenKeyArgs.ObjectAttributes = ObjectAttributes;
@@ -35,7 +35,7 @@ NTSTATUS proxyNtOpenKey(PHANDLE KeyHandle, ACCESS_MASK DesiredAccess, POBJECT_AT
 
 NTSTATUS proxyNtQueryKey(HANDLE KeyHandle, KEY_INFORMATION_CLASS KeyInformationClass, PVOID KeyInformation, ULONG Length, PULONG ResultLength) {
 	NTQUERYKEY_ARGS ntQueryKeyArgs = {};
-	ntQueryKeyArgs.pNtQueryKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryKey");
+	ntQueryKeyArgs.pNtQueryKey = myGetProcAddress(ntdlldll_RFDT, NtQueryKey_RFDT);
 	ntQueryKeyArgs.KeyHandle = KeyHandle;
 	ntQueryKeyArgs.KeyInformationClass = KeyInformationClass;
 	ntQueryKeyArgs.KeyInformation = KeyInformation;
@@ -54,7 +54,7 @@ NTSTATUS proxyNtQueryKey(HANDLE KeyHandle, KEY_INFORMATION_CLASS KeyInformationC
 
 NTSTATUS proxyNtEnumerateKey(HANDLE KeyHandle, ULONG Index, KEY_INFORMATION_CLASS KeyInformationClass, PVOID KeyInformation, ULONG Length, PULONG ResultLength) {
 	NTENUMERATEKEY_ARGS ntEnumerateKeyArgs = {};
-	ntEnumerateKeyArgs.pNtEnumerateKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateKey");
+	ntEnumerateKeyArgs.pNtEnumerateKey = myGetProcAddress(ntdlldll_RFDT, NtEnumerateKey_RFDT);
 	ntEnumerateKeyArgs.KeyHandle = KeyHandle;
 	ntEnumerateKeyArgs.Index = Index;
 	ntEnumerateKeyArgs.KeyInformationClass = KeyInformationClass;
@@ -74,7 +74,7 @@ NTSTATUS proxyNtEnumerateKey(HANDLE KeyHandle, ULONG Index, KEY_INFORMATION_CLAS
 
 NTSTATUS proxyNtQueryValueKey(HANDLE KeyHandle, PUNICODE_STRING ValueName, KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass, PVOID KeyValueInformation, ULONG Length, PULONG ResultLength) {
 	NTQUERYVALUEKEY_ARGS ntQueryValueKeyArgs = {};
-	ntQueryValueKeyArgs.pNtQueryValueKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtQueryValueKey");
+	ntQueryValueKeyArgs.pNtQueryValueKey = myGetProcAddress(ntdlldll_RFDT, NtQueryValueKey_RFDT);
 	ntQueryValueKeyArgs.KeyHandle = KeyHandle;
 	ntQueryValueKeyArgs.ValueName = ValueName;
 	ntQueryValueKeyArgs.KeyValueInformationClass = KeyValueInformationClass;
@@ -94,7 +94,7 @@ NTSTATUS proxyNtQueryValueKey(HANDLE KeyHandle, PUNICODE_STRING ValueName, KEY_V
 
 NTSTATUS proxyNtEnumerateValueKey(HANDLE KeyHandle, ULONG Index, KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass, PVOID KeyValueInformation, ULONG Length, PULONG ResultLength) {
 	NTENUMERATEVALUEKEY_ARGS ntEnumerateValueKeyArgs = {};
-	ntEnumerateValueKeyArgs.pNtEnumerateValueKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtEnumerateValueKey");
+	ntEnumerateValueKeyArgs.pNtEnumerateValueKey = myGetProcAddress(ntdlldll_RFDT, NtEnumerateValueKey_RFDT);
 	ntEnumerateValueKeyArgs.KeyHandle = KeyHandle;
 	ntEnumerateValueKeyArgs.Index = Index;
 	ntEnumerateValueKeyArgs.KeyValueInformationClass = KeyValueInformationClass;
@@ -114,7 +114,7 @@ NTSTATUS proxyNtEnumerateValueKey(HANDLE KeyHandle, ULONG Index, KEY_VALUE_INFOR
 
 NTSTATUS proxyNtCloseKey(HANDLE KeyHandle) {
 	NTCLOSE_ARGS ntCloseKeyArgs = {};
-	ntCloseKeyArgs.pNtCloseKey = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"NtClose");
+	ntCloseKeyArgs.pNtCloseKey = myGetProcAddress(ntdlldll_RFDT, NtClose_RFDT);
 	ntCloseKeyArgs.KeyHandle = KeyHandle;
 
 	PTP_WORK WorkReturn = NULL;
@@ -129,7 +129,7 @@ NTSTATUS proxyNtCloseKey(HANDLE KeyHandle) {
 
 VOID proxyRtlInitUnicodeString(PUNICODE_STRING DestinationString, __drv_aliasesMem PCWSTR SourceString) {
 	RTLINITUNICODESTRING_ARGS rtlInitUnicodeStringArgs = {};
-	rtlInitUnicodeStringArgs.pRltInitUnicodeString = myGetProcAddress((PCHAR)"ntdll.dll", (PCHAR)"RtlInitUnicodeString");
+	rtlInitUnicodeStringArgs.pRltInitUnicodeString = myGetProcAddress(ntdlldll_RFDT, RtlInitUnicodeString_RFDT);
 	rtlInitUnicodeStringArgs.DestinationString = DestinationString;
 	rtlInitUnicodeStringArgs.SourceString = SourceString;
 

