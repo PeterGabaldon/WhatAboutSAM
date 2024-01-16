@@ -74,4 +74,4 @@ jobs:
       with:
         name: WhatAboutSAM
         path: |
-          x64\Release\WhatAboutSAM.exe
+          WhatAboutSAM\WhatAboutSAM\WhatAboutSAM\x64\Release\WhatAboutSAM.exe
