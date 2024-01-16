@@ -12,17 +12,6 @@ set CALLDIR=%CD%
 set SCRIPTDIR=%~dp0
 set SCRIPTDIR=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC
 
-REM Download the latest nasm binary for windows
-if exist "%SCRIPTDIR%\nasm_%NASMVERSION%.zip" (
-    echo Using existing NASM binary...
-    goto InstallNASM
-)
-echo Checking for existing NASM in NASMPATH...
-%NASMPATH%\nasm.exe -v >nul 2>&1
-if ERRORLEVEL 0 (
-    echo Using existing NASM binary from %NASMPATH%...
-    goto SkipInstallNASM
-)
 set NASMDOWNLOAD=%NASMDL%/%NASMVERSION%/win%SYSARCH%/nasm-%NASMVERSION%-win%SYSARCH%.zip
 echo Downloading required NASM release binary...
 powershell.exe -Command "(New-Object Net.WebClient).DownloadFile('%NASMDOWNLOAD%', '%SCRIPTDIR%\nasm_%NASMVERSION%.zip')" >nul 2>&1
