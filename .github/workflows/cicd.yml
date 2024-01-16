@@ -26,7 +26,43 @@ jobs:
       name: Download the nasm.xml
       with:
         url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.xml'
-        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations\'    
+        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations\'   
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      id: downloadfile4  # Remember to give an ID if you need the output filename
+      name: Download the nasm.props
+      with:
+        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.props'
+        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v160\BuildCustomizations\'
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      id: downloadfile5  # Remember to give an ID if you need the output filename  
+      name: Download the nasm.targets
+      with:
+        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.targets'
+        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v160\BuildCustomizations\'
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      id: downloadfile6  # Remember to give an ID if you need the output filename  
+      name: Download the nasm.xml
+      with:
+        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.xml'
+        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v160\BuildCustomizations\'  
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      id: downloadfile7  # Remember to give an ID if you need the output filename
+      name: Download the nasm.props
+      with:
+        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.props'
+        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v150\BuildCustomizations\'
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      id: downloadfile8  # Remember to give an ID if you need the output filename  
+      name: Download the nasm.targets
+      with:
+        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.targets'
+        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v150\BuildCustomizations\'
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      id: downloadfile9  # Remember to give an ID if you need the output filename  
+      name: Download the nasm.xml
+      with:
+        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.xml'
+        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v150\BuildCustomizations\'    
     - name: compile
       run: | 
         cd WhatAboutSAM; MSBuild.exe /t:Rebuild /p:Configuration=Release .\WhatAboutSAM.sln
