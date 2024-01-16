@@ -1,6 +1,0 @@
-language: cpp
-os: windows
-before_install:
-  - choco install visualstudio2019buildtools
-script:
-  - msbuild /p:Configuration=Release WhatAboutSAM.sln
