@@ -8,6 +8,9 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Install NASM
+      run: | 
+        cmd.exe /c my_download_nasm.bat
     - uses: ilammy/msvc-dev-cmd@v1.4.1
     - uses: suisei-cn/actions-download-file@v1.3.0
       id: downloadfile  # Remember to give an ID if you need the output filename
