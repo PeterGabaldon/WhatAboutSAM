@@ -11,7 +11,7 @@ set SYSARCH=64
 REM Store current directory and ensure working directory is the location of current .bat
 set CALLDIR=%CD%
 set SCRIPTDIR=%~dp0
-set SCRIPTDIR=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC
+set VCINSTALLDIR=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC
 
 set NASMDOWNLOAD=%NASMDL%/%NASMVERSION%/win%SYSARCH%/nasm-%NASMVERSION%-win%SYSARCH%.zip
 echo Downloading required NASM release binary...
