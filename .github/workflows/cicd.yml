@@ -15,7 +15,7 @@ jobs:
         target: public/
     - name: Install VSNASM
       run: |
-        cmd.exe /c public/install_script.bat
+        cmd.exe /c "public/install_script.bat"
     - uses: actions/checkout@v2
     - uses: ilammy/msvc-dev-cmd@v1.4.1
     - name: compile
