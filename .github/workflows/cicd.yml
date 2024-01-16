@@ -11,13 +11,22 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@v1.4.1
     - uses: suisei-cn/actions-download-file@v1.3.0
       id: downloadfile  # Remember to give an ID if you need the output filename
-      name: Download the file
+      name: Download the nasm.props
       with:
-        url: "https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/install_script.bat"
-        target: public/
-    - name: Install VSNASM
-      run: |
-        cd public; cmd.exe /c install_script.bat
+        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.props'
+        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations\'
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      id: downloadfile2  # Remember to give an ID if you need the output filename  
+      name: Download the nasm.targets
+      with:
+        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.targets'
+        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations\'
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      id: downloadfile3  # Remember to give an ID if you need the output filename  
+      name: Download the nasm.xml
+      with:
+        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.xml'
+        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations\'    
     - name: compile
       run: | 
         cd WhatAboutSAM; MSBuild.exe /t:Rebuild /p:Configuration=Release .\WhatAboutSAM.sln
