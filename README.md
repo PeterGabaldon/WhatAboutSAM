@@ -8,7 +8,7 @@ Also, I wanted to practice some malware development techniques (enumerated below
 
 Please, take a look at the credits because without these projects this would not have been possible.
 
-![Sample execution](img/Pasted image 20240121191233.png)
+![Sample execution](/img/Pasted image 20240121191233.png)
 
 ## TODO List
 
