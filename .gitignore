@@ -398,3 +398,4 @@ FodyWeavers.xsd
 *.sln.iml
 
 WhatAboutSAM/WhatAboutSAM/cryptopp/cryptlib.lib
+my_download_nasm.bat
