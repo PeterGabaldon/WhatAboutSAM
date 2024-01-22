@@ -1,3 +1,5 @@
+[![CICD](https://github.com/PeterGabaldon/WhatAboutSAM/actions/workflows/cicd.yml/badge.svg?branch=main)](https://github.com/PeterGabaldon/WhatAboutSAM/actions/workflows/cicd.yml)
+
 # WhatAboutSAM
 
 WhatAboutSAM is my custom Windows SAM dumper, reading it from the registry. So, SYSTEM privileges are needed. I wanted to study at a low level how Windows stores local user credentials in the Security Account Manager (SAM). As a Cybersecurity Engineer with a mostly offensive mindset, I have used many times the tools we all know: mimikatz, secretsdump (impacket), pwdump, hashdump (metasploit), crackmapexec (--sam parameter), LaZAgne...
