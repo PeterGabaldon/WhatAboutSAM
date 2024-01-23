@@ -24,6 +24,9 @@
     <ClCompile Include="proxyNtCalls.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="shadowMethod.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Resource Include="res\Manifest.res">
@@ -611,6 +614,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="cryptopp\include\zlib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="shadowMethod.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

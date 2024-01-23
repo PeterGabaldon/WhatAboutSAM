@@ -135,18 +135,21 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>$(SolutionDir)WhatAboutSAM\cryptopp\cryptlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="proxyNtCalls.cpp" />
     <ClCompile Include="proxyNtCalls.h" />
+    <ClCompile Include="shadowMethod.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="res\Manifest.res" />
@@ -346,6 +349,7 @@
     <ClInclude Include="cryptopp\include\zlib.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="ntdll.h" />
+    <ClInclude Include="shadowMethod.h" />
   </ItemGroup>
   <ItemGroup>
     <NASM Include="proxyNtCallsASM.asm">
