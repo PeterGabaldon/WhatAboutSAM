@@ -18,6 +18,7 @@ BOOL createSS() {
 	HRESULT asyncResult = E_FAIL;
 	VSS_ID * snapshotSetId = NULL;
 	VSS_ID * snapshotId = NULL;
+	VSS_SNAPSHOT_PROP snapshotProp{};
 	// For now, we presuppose C:
 
 	// Not necessary right now. Later, when using args is better to use GetVolumePathNameW(); before GetVolumeNameForVolumeMountPointW 
@@ -82,7 +83,57 @@ BOOL createSS() {
 
 	snapshotId = (VSS_ID*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(VSS_ID));
 
+	result = backupComponents->AddToSnapshotSet(volumeName, GUID_NULL, snapshotId);
 
+	result = backupComponents->PrepareForBackup(&vssAsync);
 
+	while (asyncResult != VSS_S_ASYNC_CANCELLED && asyncResult != VSS_S_ASYNC_FINISHED) {
+		Sleep(SLEEP_VSS_SYNC);
+		result = vssAsync->QueryStatus(&asyncResult, NULL);
+		if (result != S_OK) {
+			vssAsync->Release();
+			vssAsync = NULL;
+		}
+	}
 
+	if (asyncResult == VSS_S_ASYNC_CANCELLED) {
+		vssAsync->Release();
+		vssAsync = NULL;
+	}
+
+	asyncResult = E_FAIL;
+	vssAsync->Release();
+	vssAsync = NULL;
+
+	// verify all VSS writers are in the correct state
+	// TODO
+	// VerifyWriterStatus();
+
+	result = backupComponents->DoSnapshotSet(&vssAsync);
+
+	while (asyncResult != VSS_S_ASYNC_CANCELLED && asyncResult != VSS_S_ASYNC_FINISHED) {
+		Sleep(SLEEP_VSS_SYNC);
+		result = vssAsync->QueryStatus(&asyncResult, NULL);
+		if (result != S_OK) {
+			vssAsync->Release();
+			vssAsync = NULL;
+		}
+	}
+
+	if (asyncResult == VSS_S_ASYNC_CANCELLED) {
+		vssAsync->Release();
+		vssAsync = NULL;
+	}
+
+	asyncResult = E_FAIL;
+	vssAsync->Release();
+	vssAsync = NULL;
+
+	// verify all VSS writers are in the correct state
+	// TODO
+	// VerifyWriterStatus();
+
+	result = backupComponents->GetSnapshotProperties(*snapshotId, &snapshotProp);
+
+	// TO BE CONTINUED :)
 }
