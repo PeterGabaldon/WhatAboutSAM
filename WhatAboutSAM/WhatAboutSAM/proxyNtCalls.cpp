@@ -1,8 +1,8 @@
 // Thanks Paranoid Ninja: https://0xdarkvortex.dev/proxying-dll-loads-for-hiding-etwti-stack-tracing/
 // https://0xdarkvortex.dev/hiding-in-plainsight/
 
-#include "proxyNtCalls.h"
-#include "main.h"
+#include "include/proxyNtCalls.h"
+#include "include/main.h"
 
 myTpAllocWork pMyTpAllocWork = (myTpAllocWork)myGetProcAddress(ntdlldll_RFDT, TpAllocWork_RFDT);
 myTpPostWork pMyTpPostWork = (myTpPostWork)myGetProcAddress(ntdlldll_RFDT, TpPostWork_RFDT);

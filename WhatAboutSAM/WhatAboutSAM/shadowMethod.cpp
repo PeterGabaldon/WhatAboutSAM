@@ -18,7 +18,9 @@
 #include <vss.h>
 #include <stdio.h>
 
-#include "shadowMethod.h"
+#include "include/shadowMethod.h"
+#include "include/main.h"
+#include "include/libregf/libregf.h"
 
 BOOL createSS() {
 	HRESULT result;
@@ -179,4 +181,8 @@ BOOL createSS() {
 	fileSize = GetFileSize(file, NULL);
 	SYSTEM = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, fileSize);
 	resultRead = ReadFile(file, SYSTEM, fileSize, &numberBytesRead, NULL);
+}
+
+void getSAMfromRegf(PSAM samRegEntries[], PULONG size, BYTE * SAM, BYTE * SYSTEM) {
+
 }

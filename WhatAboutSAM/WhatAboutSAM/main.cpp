@@ -13,29 +13,29 @@
 #include <comdef.h>
 #include <string.h>
 
-#include "main.h"
-#include "proxyNtCalls.h"
+#include "include/main.h"
+#include "include/proxyNtCalls.h"
 
-#include "cryptopp/include/aes.h"
+#include "include/cryptopp/aes.h"
 using CryptoPP::AES;
 
-#include "cryptopp/include/ccm.h"
+#include "include/cryptopp/ccm.h"
 using CryptoPP::CBC_Mode;
 using CryptoPP::ECB_Mode;
 
-#include "cryptopp/include/filters.h"
+#include "include/cryptopp/filters.h"
 using CryptoPP::ArraySource;
 using CryptoPP::StreamTransformationFilter;
 using CryptoPP::ArraySink;
 using CryptoPP::Redirector;
 
-#include "cryptopp/include/md5.h"
+#include "include/cryptopp/md5.h"
 using CryptoPP::MD5;
 
-#include "cryptopp/include/arc4.h"
+#include "include/cryptopp/arc4.h"
 using CryptoPP::ARC4;
 
-#include "cryptopp/include/des.h"
+#include "include/cryptopp/des.h"
 using CryptoPP::DES;
 
 // Globals "myFuncs"
