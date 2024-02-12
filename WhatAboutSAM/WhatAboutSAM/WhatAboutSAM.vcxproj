@@ -148,6 +148,7 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="proxyNtCalls.cpp" />
+    <ClCompile Include="regfParser.cpp" />
     <ClCompile Include="shadowMethod.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -351,16 +352,10 @@
     <ClInclude Include="include\cryptopp\zdeflate.h" />
     <ClInclude Include="include\cryptopp\zinflate.h" />
     <ClInclude Include="include\cryptopp\zlib.h" />
-    <ClInclude Include="include\libregf\libregf.h" />
-    <ClInclude Include="include\libregf\libregf\codepage.h" />
-    <ClInclude Include="include\libregf\libregf\definitions.h" />
-    <ClInclude Include="include\libregf\libregf\error.h" />
-    <ClInclude Include="include\libregf\libregf\extern.h" />
-    <ClInclude Include="include\libregf\libregf\features.h" />
-    <ClInclude Include="include\libregf\libregf\types.h" />
     <ClInclude Include="include\main.h" />
     <ClInclude Include="include\ntdll.h" />
     <ClInclude Include="include\proxyNtCalls.h" />
+    <ClInclude Include="include\regfParser.h" />
     <ClInclude Include="include\shadowMethod.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

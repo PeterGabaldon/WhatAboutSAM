@@ -183,6 +183,6 @@ BOOL createSS() {
 	resultRead = ReadFile(file, SYSTEM, fileSize, &numberBytesRead, NULL);
 }
 
-void getSAMfromRegf(PSAM samRegEntries[], PULONG size, BYTE * SAM, BYTE * SYSTEM) {
+void getSAMfromRegf(PSAM samRegEntries[], PULONG size, FILE * SAM, FILE * SYSTEM) {
 
 }

@@ -24,6 +24,9 @@
     <ClCompile Include="shadowMethod.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="regfParser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Resource Include="res\Manifest.res">
@@ -624,25 +627,7 @@
     <ClInclude Include="include\cryptopp\zlib.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\libregf\libregf.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\libregf\libregf\codepage.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\libregf\libregf\definitions.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\libregf\libregf\error.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\libregf\libregf\extern.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\libregf\libregf\features.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\libregf\libregf\types.h">
+    <ClInclude Include="include\regfParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
