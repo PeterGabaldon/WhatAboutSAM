@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 
+// Constants
 #define REG_NONE        0x00
 #define REG_SZ          0x01
 #define REG_EXPAND_SZ   0x02
@@ -11,99 +12,97 @@
 #define REG_QWORD       0x0b
 #define ROOT_KEY        0x2c
 
-using namespace std;
-
-struct REG_REGF {
-    CHAR Magic[4];
-    ULONG Unknown;
-    ULONG Unknown2;
+// Structs
+typedef struct _REG_REGF {
+    BYTE Magic[4];
+    DWORD Unknown;
+    DWORD Unknown2;
     ULONGLONG lastChange;
-    ULONG MajorVersion;
-    ULONG MinorVersion;
-    ULONG _0;
-    ULONG _11;
-    ULONG OffsetFirstRecord;
-    ULONG DataSize;
-    ULONG _1111;
-    CHAR Name[48];
-    CHAR Remaining1[411];
-    ULONG CheckSum;
-    CHAR Remaining2[3585];
-};
+    DWORD MajorVersion;
+    DWORD MinorVersion;
+    DWORD _0;
+    DWORD _11;
+    DWORD OffsetFirstRecord;
+    DWORD DataSize;
+    DWORD _1111;
+    BYTE Name[48];
+    BYTE Remaining1[411];
+    DWORD CheckSum;
+    BYTE Remaining2[3585];
+} REG_REGF, *PREG_REGF;
 
-struct REG_HBIN {
-    CHAR Magic[4];
-    ULONG OffsetFirstHBin;
-    ULONG OffsetNextHBin;
-    ULONG BlockSize;
-};
+typedef struct _REG_HBIN {
+    BYTE Magic[4];
+    DWORD OffsetFirstHBin;
+    DWORD OffsetNextHBin;
+    DWORD BlockSize;
+} REG_HBIN, *PREG_HBIN;
 
-struct REG_HBINBLOCK {
+typedef struct _REG_HBINBLOCK {
     LONG DataBlockSize;
-    CHAR Data[];
-};
+    BYTE Data[];
+} REG_HBINBLOCK, *PREG_HBINBLOCK;
 
-struct REG_NK {
-    CHAR Magic[2];
+typedef struct _REG_NK {
+    BYTE Magic[2];
+    USHORT Type;
     ULONGLONG lastChange;
-    ULONG Unknown;
+    DWORD Unknown;
     LONG OffsetParent;
-    ULONG NumSubKeys;
-    ULONG Unknown2;
+    DWORD NumSubKeys;
+    DWORD Unknown2;
     LONG OffsetSubKeyLf;
-    ULONG Unknown3;
-    ULONG NumValues;
+    DWORD Unknown3;
+    DWORD NumValues;
     LONG OffsetValueList;
     LONG OffsetSkRecord;
     LONG OffsetClassName;
-    CHAR UnUsed[20];
-    SHORT NameLength;
-    SHORT ClassNameLength;
-    CHAR KeyName[];
-};
+    BYTE UnUsed[20];
+    USHORT NameLength;
+    USHORT ClassNameLength;
+    BYTE KeyName[];
+} REG_NK, *PREG_NK;
 
-struct REG_VK {
-    CHAR Magic[2];
-    SHORT NameLength;
+typedef struct _REG_VK {
+    BYTE Magic[2];
+    USHORT NameLength;
     LONG DataLen;
-    ULONG OffsetData;
-    ULONG ValueType;
-    SHORT Flag;
-    SHORT UnUsed;
-    CHAR Name[];
-};
+    DWORD OffsetData;
+    DWORD ValueType;
+    USHORT Flag;
+    USHORT UnUsed;
+    BYTE Name[];
+} REG_VK, *PREG_VK;
 
-struct REG_LF {
-    CHAR Magic[2];
-    SHORT NumKeys;
-    CHAR HashRecords[];
-};
+typedef struct _REG_LF {
+    BYTE Magic[2];
+    USHORT NumKeys;
+    BYTE HashRecords[];
+} REG_LF, *PREG_LF;
 
-struct REG_LH {
-    CHAR Magic[2];
-    SHORT NumKeys;
-    CHAR HashRecords[];
-};
+typedef struct _REG_LH {
+    BYTE Magic[2];
+    USHORT NumKeys;
+    BYTE HashRecords[];
+} REG_LH, *PREG_LH;
 
-struct REG_RI {
-    CHAR Magic[2];
-    SHORT NumKeys;
-    CHAR HashRecords[];
-};
+typedef struct _REG_RI {
+    BYTE Magic[2];
+    USHORT NumKeys;
+    BYTE HashRecords[];
+} REG_RI, *PREG_RI;
 
-struct REG_SK {
-    CHAR Magic[2];
+typedef struct _REG_SK {
+    BYTE Magic[2];
     USHORT UnUsed;
     LONG OffsetPreviousSk;
     LONG OffsetNextSk;
-    ULONG UsageCounter;
-    ULONG SizeSk;
-    CHAR Data[];
-};
+    DWORD UsageCounter;
+    DWORD SizeSk;
+    BYTE Data[];
+} REG_SK, *PREG_SK;
 
-struct REG_HASH {
-    ULONG OffsetNk;
-    CHAR KeyName[4];
-};
-
-
+typedef struct _REG_HASH {
+    DWORD OffsetNk;
+    BYTE KeyName[4];
+} REG_HASH, *PREG_HASH;
