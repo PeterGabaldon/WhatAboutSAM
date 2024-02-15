@@ -14,7 +14,7 @@
 
 // Structs
 typedef struct _REG_REGF {
-    BYTE Magic[4];
+    CHAR Magic[4];
     DWORD Unknown;
     DWORD Unknown2;
     ULONGLONG lastChange;
@@ -32,9 +32,9 @@ typedef struct _REG_REGF {
 } REG_REGF, *PREG_REGF;
 
 typedef struct _REG_HBIN {
-    BYTE Magic[4];
-    DWORD OffsetFirstHBin;
-    DWORD OffsetNextHBin;
+    CHAR Magic[4];
+    DWORD RelativeOffsetHBin;
+    DWORD SizeOfHbin;
     DWORD BlockSize;
 } REG_HBIN, *PREG_HBIN;
 
@@ -44,7 +44,7 @@ typedef struct _REG_HBINBLOCK {
 } REG_HBINBLOCK, *PREG_HBINBLOCK;
 
 typedef struct _REG_NK {
-    BYTE Magic[2];
+    CHAR Magic[2];
     USHORT Type;
     ULONGLONG lastChange;
     DWORD Unknown;
@@ -64,7 +64,7 @@ typedef struct _REG_NK {
 } REG_NK, *PREG_NK;
 
 typedef struct _REG_VK {
-    BYTE Magic[2];
+    CHAR Magic[2];
     USHORT NameLength;
     LONG DataLen;
     DWORD OffsetData;
@@ -75,25 +75,25 @@ typedef struct _REG_VK {
 } REG_VK, *PREG_VK;
 
 typedef struct _REG_LF {
-    BYTE Magic[2];
+    CHAR Magic[2];
     USHORT NumKeys;
     BYTE HashRecords[];
 } REG_LF, *PREG_LF;
 
 typedef struct _REG_LH {
-    BYTE Magic[2];
+    CHAR Magic[2];
     USHORT NumKeys;
     BYTE HashRecords[];
 } REG_LH, *PREG_LH;
 
 typedef struct _REG_RI {
-    BYTE Magic[2];
+    CHAR Magic[2];
     USHORT NumKeys;
     BYTE HashRecords[];
 } REG_RI, *PREG_RI;
 
 typedef struct _REG_SK {
-    BYTE Magic[2];
+    CHAR Magic[2];
     USHORT UnUsed;
     LONG OffsetPreviousSk;
     LONG OffsetNextSk;
