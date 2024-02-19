@@ -20,7 +20,6 @@
 
 #include "include/shadowMethod.h"
 #include "include/main.h"
-#include "include/libregf/libregf.h"
 
 BOOL createSS() {
 	HRESULT result;
