@@ -630,5 +630,8 @@
     <ClInclude Include="include\regfParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\offreg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

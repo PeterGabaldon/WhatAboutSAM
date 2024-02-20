@@ -354,6 +354,7 @@
     <ClInclude Include="include\cryptopp\zlib.h" />
     <ClInclude Include="include\main.h" />
     <ClInclude Include="include\ntdll.h" />
+    <ClInclude Include="include\offreg.h" />
     <ClInclude Include="include\proxyNtCalls.h" />
     <ClInclude Include="include\regfParser.h" />
     <ClInclude Include="include\shadowMethod.h" />
