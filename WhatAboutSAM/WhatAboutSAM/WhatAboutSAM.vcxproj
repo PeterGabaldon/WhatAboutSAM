@@ -148,7 +148,6 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="proxyNtCalls.cpp" />
-    <ClCompile Include="regfParser.cpp" />
     <ClCompile Include="shadowMethod.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -356,7 +355,6 @@
     <ClInclude Include="include\ntdll.h" />
     <ClInclude Include="include\offreg.h" />
     <ClInclude Include="include\proxyNtCalls.h" />
-    <ClInclude Include="include\regfParser.h" />
     <ClInclude Include="include\shadowMethod.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

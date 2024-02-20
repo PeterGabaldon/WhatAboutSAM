@@ -24,9 +24,6 @@
     <ClCompile Include="shadowMethod.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="regfParser.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Resource Include="res\Manifest.res">
@@ -625,9 +622,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\cryptopp\zlib.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\regfParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\offreg.h">
