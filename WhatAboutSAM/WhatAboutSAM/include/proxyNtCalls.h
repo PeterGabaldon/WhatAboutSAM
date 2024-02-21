@@ -4,8 +4,6 @@
 #pragma once
 
 #include <Windows.h>
-#include <winternl.h>
-#include <windef.h>
 
 #include "ntdll.h"
 

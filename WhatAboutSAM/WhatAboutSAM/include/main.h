@@ -1,6 +1,5 @@
 #pragma once
 
-#include <windef.h>
 #include <ntdef.h>
 
 #include "ntdll.h"
