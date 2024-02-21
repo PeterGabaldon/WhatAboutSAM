@@ -150,7 +150,9 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="proxyNtCalls.cpp" />
-    <ClCompile Include="shadowMethod.cpp" />
+    <ClCompile Include="shadowMethod.cpp">
+      <TreatWChar_tAsBuiltInType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</TreatWChar_tAsBuiltInType>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Resource Include="res\Manifest.res" />

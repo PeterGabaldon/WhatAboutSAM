@@ -1,8 +1,6 @@
 // Thanks Paranoid Ninja: https://0xdarkvortex.dev/proxying-dll-loads-for-hiding-etwti-stack-tracing/
 // https://0xdarkvortex.dev/hiding-in-plainsight/
 
-#include <winternl.h>
-
 #include "include/proxyNtCalls.h"
 #include "include/main.h"
 
