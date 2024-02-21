@@ -45,9 +45,6 @@
     <ClInclude Include="include\proxyNtCalls.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\shadowMethod.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\cryptopp\3way.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -625,6 +622,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\offreg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\shadowMethod.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

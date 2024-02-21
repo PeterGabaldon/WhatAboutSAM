@@ -1,6 +1,8 @@
 #pragma once
 
 #include <windef.h>
+#include <ntdef.h>
+
 #include "ntdll.h"
 
 // https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry-element-size-limits

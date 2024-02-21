@@ -11,10 +11,9 @@
 // Special mention to ShadowDuplicator from Peter Upfold because I took some much code from it to implement the shadow copy method and get SYSTEM and SAM from it
 // https://github.com/PeterUpfold
 // 
-//#define _CRT_SECURE_NO_WARNINGS
+ 
+#define _CRT_SECURE_NO_WARNINGS
 
-#include <Windows.h>
-#include <ntstatus.h>
 #include <vss.h>
 #include <vswriter.h>
 #include <vsbackup.h>
