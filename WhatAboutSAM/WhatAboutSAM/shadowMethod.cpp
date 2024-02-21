@@ -2,8 +2,8 @@
 // Perform a Shadow Snapshot to read SAM and SYSTEM
 // from this newly created SS instead of reading them from the registry
 
-// For this method, we need to parse the whole SAM and SYSTEM using the REGF format.
-// https://github.com/fortra/impacket/blob/master/impacket/winregistry.py#L46
+// Using Offline Registry library, Offreg.dll, for parsing the Registry from the REGF-formatted SAM and SYSTEM files
+
 // https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/Win7Samples/winbase/vss/vshadow/shadow.cpp
 // https://github.com/PeterUpfold/ShadowDuplicator
 // https://learn.microsoft.com/en-us/windows/win32/vss/volume-shadow-copy-reference
@@ -14,10 +14,11 @@
 //#define _CRT_SECURE_NO_WARNINGS
 
 #include <Windows.h>
-#include <vsbackup.h>
+#include <ntstatus.h>
 #include <vss.h>
+#include <vswriter.h>
+#include <vsbackup.h>
 #include <stdio.h>
-#include <ntdef.h>
 
 #include "include/shadowMethod.h"
 #include "include/main.h"

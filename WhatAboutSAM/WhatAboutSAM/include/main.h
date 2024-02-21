@@ -3,16 +3,6 @@
 #include <windef.h>
 #include "ntdll.h"
 
-// Globals "myFuncs"
-myMessageBox pMyMessageBox;
-myNtOpenKey pMyNtOpenKey;
-myNtQueryKey pMyNtQueryKey;
-myNtEnumerateKey pMyNtEnumerateKey;
-myNtQueryValueKey pMyNtQueryValueKey;
-myNtEnumerateValueKey pMyNtEnumerateValueKey;
-myNtClose pMyNtClose;
-myRtlInitUnicodeString pMyRtlInitUnicodeString;
-
 // https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry-element-size-limits
 #define MAX_KEY_LENGTH 255+2
 #define MAX_KEY_VALUE_LENGTH 1000
