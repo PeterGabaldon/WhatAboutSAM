@@ -40,7 +40,7 @@ BOOL createSS() {
 	VSS_SNAPSHOT_PROP snapshotProp{};
 	// For now, we presuppose C:
 
-	// Not necessary right now. Later, when using args is better to use GetVolumePathNameW(); before GetVolumeNameForVolumeMountPointW 
+	// Not necessary right now. Later, when using args is better to use GetVolumePathNameW(); before GetVolumeNameForVolumeMountPointW
 
 	WCHAR volumeName[MAX_PATH] = {};
 	if (!GetVolumeNameForVolumeMountPointW(L"C:\\", volumeName, MAX_PATH)) {
