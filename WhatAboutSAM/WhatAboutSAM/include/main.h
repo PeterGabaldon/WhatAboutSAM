@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ntdef.h>
+#include <winternl.h>
 
 #include "ntdll.h"
 

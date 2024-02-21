@@ -2,6 +2,8 @@
 
 #define SLEEP_VSS_SYNC 500
 
+#include <Windows.h>
+
 #include "main.h"
 
 BOOL createSS();

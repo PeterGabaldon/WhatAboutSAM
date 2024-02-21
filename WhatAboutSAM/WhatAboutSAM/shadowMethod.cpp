@@ -20,7 +20,7 @@
 #include <stdio.h>
 
 #include "include/shadowMethod.h"
-#include "include/main.h"
+#include "include/ntdll.h"
 #include "include/offreg.h"
 
 BOOL createSS() {

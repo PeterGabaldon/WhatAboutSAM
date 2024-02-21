@@ -8,10 +8,10 @@
 
 #include <Windows.h>
 #include <winternl.h>
-#include <BaseTsd.h>
-#include <ntstatus.h>
-#include <comdef.h>
-#include <string.h>
+//#include <BaseTsd.h>
+//#include <ntstatus.h>
+//#include <comdef.h>
+//#include <string.h>
 
 #include "include/main.h"
 #include "include/proxyNtCalls.h"
