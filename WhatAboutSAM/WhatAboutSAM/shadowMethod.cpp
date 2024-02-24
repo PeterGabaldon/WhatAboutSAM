@@ -191,7 +191,7 @@ void getSAMfromRegf(PSAM samRegEntries[], PULONG size, WCHAR SAMPath[MAX_PATH], 
 		exit(ret);
 	}
 
-	// Open SAM\Domains\USers
+	// Open SAM\Account\Domains\USers
 
 	ret = OROpenKey(samHive, L"SAM", &subKeyUsers);
 
@@ -200,6 +200,12 @@ void getSAMfromRegf(PSAM samRegEntries[], PULONG size, WCHAR SAMPath[MAX_PATH], 
 	}
 
 	ret = OROpenKey(subKeyUsers, L"Domains", &subKeyUsers);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	ret = OROpenKey(subKeyUsers, L"Account", &subKeyUsers);
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
@@ -262,8 +268,8 @@ void getSAMfromRegf(PSAM samRegEntries[], PULONG size, WCHAR SAMPath[MAX_PATH], 
 				exit(ret);
 			}
 
-			PSAM sam = (PSAM) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SAMPath));
-			wcscpy_s(sam->rid, wcslen(nameSubkeyKey), nameSubkeyKey);
+			PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SAM));
+			wcscpy_s(sam->rid, MAX_KEY_LENGTH, nameSubkeyKey);
 
 			// TODO
 			getClassesfromRegf(sam, SYSTEMPath);
@@ -352,7 +358,7 @@ void getClassesfromRegf(PSAM samRegEntry, WCHAR SYSTEMPath[MAX_PATH]) {
 		exit(ret);
 	}
 	
-	ret = OROpenKey(systemHive, L"CurrentControlSet", &key);
+	ret = OROpenKey(systemHive, L"ControlSet001", &key);
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
@@ -379,7 +385,7 @@ void getClassesfromRegf(PSAM samRegEntry, WCHAR SYSTEMPath[MAX_PATH]) {
 			exit(ret);
 		}
 
-		lenRead = 0;
+		lenRead = MAX_KEY_VALUE_LENGTH;
 		ret = ORQueryInfoKey(subKey, keyClass, &lenRead, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 		if (!NT_SUCCESS(ret)) {
