@@ -396,7 +396,3 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-
-WhatAboutSAM/WhatAboutSAM/lib/cryptlib.lib
-my_download_nasm.bat
-.github/**
