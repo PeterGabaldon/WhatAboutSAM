@@ -308,8 +308,8 @@ void getSAMfromRegf(PSAM samRegEntries[], PULONG size, WCHAR SAMPath[MAX_PATH], 
 
 				if (wcsncmp(nameValueSubkeyF, L"F", wcslen(nameValueSubkeyF)) == 0) {
 					lenRead = MAX_KEY_VALUE_LENGTH;
-					ret = ORGetValue(subKeyAccount, NULL, nameValueSubkeyF, NULL, sam->v, &lenRead);
-					sam->vLen = lenRead;
+					ret = ORGetValue(subKeyAccount, NULL, nameValueSubkeyF, NULL, sam->f, &lenRead);
+					sam->fLen = lenRead;
 				}
 			}
 
@@ -321,7 +321,7 @@ void getSAMfromRegf(PSAM samRegEntries[], PULONG size, WCHAR SAMPath[MAX_PATH], 
 	}
 	ORCloseKey(subKeyUsers);
 
-	ULONG lenRet = nEntries * sizeof(SAMPath);
+	ULONG lenRet = nEntries * sizeof(SAM);
 	CopyMemory(size, &lenRet, sizeof(ULONG));
 
 	if (samRegEntries != NULL) {
