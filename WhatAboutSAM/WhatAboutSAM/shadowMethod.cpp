@@ -23,7 +23,7 @@
 #include "include/ntdll.h"
 #include "include/offreg.h"
 
-BOOL createSS() {
+BOOL createSS(WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)], WCHAR sourcePathFileSYSTEM[MAX_PATH * sizeof(WCHAR)]) {
 	HRESULT result;
 	int strResult;
 	BOOL resultRead;
@@ -38,6 +38,7 @@ BOOL createSS() {
 	VSS_ID * snapshotSetId = NULL;
 	VSS_ID * snapshotId = NULL;
 	VSS_SNAPSHOT_PROP snapshotProp{};
+
 	// For now, we presuppose C:
 
 	// Not necessary right now. Later, when using args is better to use GetVolumePathNameW(); before GetVolumeNameForVolumeMountPointW
@@ -157,14 +158,10 @@ BOOL createSS() {
 	// Perform the copy from SS
 
 	// SAM
-	WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)];
 	strResult = swprintf(sourcePathFileSAM, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, L"Windows\\System32\\Config\\SAM");
 
 	// SYSTEN
-	WCHAR sourcePathFileSYSTEM[MAX_PATH * sizeof(WCHAR)];
 	strResult = swprintf(sourcePathFileSYSTEM, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, L"Windows\\System32\\Config\\SYSTEM");
-
-	// getSAMfromRegf()
 }
 
 void getSAMfromRegf(PSAM samRegEntries[], PULONG size, WCHAR SAMPath[MAX_PATH], WCHAR SYSTEMPath[MAX_PATH]) {

