@@ -16,7 +16,6 @@ Abstract:
 #pragma once
 
 #ifndef __OFFREG_H__
-#define __OFFREG_H__
 
 #ifdef __cplusplus
 extern "C"

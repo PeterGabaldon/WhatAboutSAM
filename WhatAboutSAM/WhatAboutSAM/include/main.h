@@ -11,8 +11,6 @@
 #define MAX_SAM_ENTRIES 100
 #define STR_TO_KEY_LEN 8
 
-#define PROXY_NT_CALLS	1
-
 #define NtOpenKey_RFDT   0xB9491C52
 #define NtQueryKey_RFDT          0x3C34AAD6
 #define NtEnumerateKey_RFDT      0x8E67DF26

