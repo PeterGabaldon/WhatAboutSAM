@@ -27,9 +27,9 @@ Please, take a look at the credits because without these projects this would not
 - [x] API Hashing
 - [x] Travis CI (Finally done with Github Actions)
 - [x] Debug Branch vs Release Branch
-- [ ] Shadow Snapshot Method
+- [x] Shadow Snapshot Method
 - [ ] Test Old Algorithm. What a bummer. Microsoft Changed storage in SAM in Windows 10 1909
-- [ ] Command Line Parameters
+- [x] Command Line Parameters
 - [ ] Add more comments :)
 - [ ] Debug prints
 - [ ] Elevate to SYSTEM
