@@ -14,9 +14,6 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 
-#include <vss.h>
-#include <vswriter.h>
-#include <vsbackup.h>
 #include <stdio.h>
 
 #include "include/shadowMethod.h"
@@ -126,8 +123,8 @@ BOOL createSS(WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)], WCHAR sourcePat
 	vssAsync = NULL;
 
 	// verify all VSS writers are in the correct state
-	// TODO
-	// VerifyWriterStatus();
+
+	VerifyWriterStatus(backupComponents, vssAsync, shouldAbortBackupOnBail);
 
 	result = backupComponents->DoSnapshotSet(&vssAsync);
 
@@ -150,8 +147,8 @@ BOOL createSS(WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)], WCHAR sourcePat
 	vssAsync = NULL;
 
 	// verify all VSS writers are in the correct state
-	// TODO
-	// VerifyWriterStatus();
+
+	VerifyWriterStatus(backupComponents, vssAsync, shouldAbortBackupOnBail);
 
 	result = backupComponents->GetSnapshotProperties(*snapshotId, &snapshotProp);
 
@@ -163,6 +160,97 @@ BOOL createSS(WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)], WCHAR sourcePat
 	// SYSTEM
 	WCHAR auxSYSTEM[] = { L'W',L'i',L'n',L'd',L'o',L'w',L's',L'\\',L'S',L'y',L's',L't',L'e',L'm',L'3',L'2',L'\\',L'C',L'o',L'n',L'f',L'i',L'g',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M', L'\0' };
 	strResult = swprintf(sourcePathFileSYSTEM, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, auxSYSTEM);
+}
+
+void VerifyWriterStatus(IVssBackupComponents* backupComponents, IVssAsync* vssAsync, BOOL shouldAbortBackupOnBail) {
+	HRESULT result = E_FAIL;
+	HRESULT asyncResult = E_FAIL;
+
+	// verify writer status
+	result = backupComponents->GatherWriterStatus(&vssAsync);
+
+	while (asyncResult != VSS_S_ASYNC_CANCELLED && asyncResult != VSS_S_ASYNC_FINISHED) {
+		Sleep(SLEEP_VSS_SYNC);
+		result = vssAsync->QueryStatus(&asyncResult, NULL);
+		if (result != S_OK) {
+			printf("Unable to query vss async status -- %x\n", result);
+			vssAsync->Release();
+			vssAsync = nullptr;
+			bail(result, backupComponents, shouldAbortBackupOnBail);
+		}
+	}
+
+	if (asyncResult == VSS_S_ASYNC_CANCELLED) {
+		printf("Operation was cancelled.");
+		vssAsync->Release();
+		vssAsync = nullptr;
+		bail(result, backupComponents, shouldAbortBackupOnBail);
+	}
+
+	// get count of writers
+	UINT writerCount = 0;
+	result = backupComponents->GetWriterStatusCount(&writerCount);
+	if (result != S_OK) {
+		printf("Unable to get count of writers -- %x\n", result);
+		backupComponents->FreeWriterStatus();
+		vssAsync->Release();
+		vssAsync = nullptr;
+		bail(result, backupComponents, shouldAbortBackupOnBail);
+	}
+
+	// check status of writers
+	for (UINT i = 0; i < writerCount; i++) {
+		VSS_ID pidInstance = {};
+		VSS_ID pidWriter = {};
+		BSTR nameOfWriter = nullptr;
+		VSS_WRITER_STATE state = { };
+		HRESULT vssFailure = {};
+		WCHAR writerDebugString[512] = {};
+		result = backupComponents->GetWriterStatus(i, &pidInstance, &pidWriter, &nameOfWriter, &state, &vssFailure);
+		if (result != S_OK) {
+			printf("Unable to get status of VSS writer %i -- %x\n", i, result);
+			SysFreeString(nameOfWriter); //safe even if nameOfWriter == nullptr
+			backupComponents->FreeWriterStatus();
+			vssAsync->Release();
+			vssAsync = nullptr;
+			bail(result, backupComponents, shouldAbortBackupOnBail);
+		}
+
+		if (vssFailure == 0) {
+			// this writer is happy
+			SysFreeString(nameOfWriter);
+			continue;
+		}
+
+		SysFreeString(nameOfWriter);
+		backupComponents->FreeWriterStatus();
+		vssAsync->Release();
+		vssAsync = nullptr;
+		bail(result, backupComponents, shouldAbortBackupOnBail);
+	}
+
+	backupComponents->FreeWriterStatus();
+}
+
+void bail(HRESULT exitCode, IVssBackupComponents* backupComponents, BOOL shouldAbortBackupOnBail) {
+	//FreeSourceStructures();
+
+	if (backupComponents != NULL) {
+		if (shouldAbortBackupOnBail) {
+			HRESULT abortResult = backupComponents->AbortBackup();
+			if (abortResult != S_OK) {
+				wprintf(L"Failed to abort the backup with error 0x%x\n", abortResult);
+			}
+		}
+
+		// free writer metadata
+		backupComponents->FreeWriterMetadata();
+
+		backupComponents->Release();
+		backupComponents = nullptr;
+	}
+
+	exit(exitCode);
 }
 
 void getSAMfromRegf(PSAM samRegEntries[], PULONG size, WCHAR SAMPath[MAX_PATH], WCHAR SYSTEMPath[MAX_PATH]) {
