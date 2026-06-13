@@ -740,7 +740,10 @@ int main(int argc, char** argv) {
 
 		WCHAR sourcePathFileSAM[MAX_PATH * sizeof(WCHAR)];
 		WCHAR sourcePathFileSYSTEM[MAX_PATH * sizeof(WCHAR)];
-		createSS(sourcePathFileSAM, sourcePathFileSYSTEM);
+		if (!createSS(sourcePathFileSAM, sourcePathFileSYSTEM)) {
+			printf("Unable to create shadow snapshot\n");
+			exit(1);
+		}
 
 		getSAMfromRegf(NULL, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
 		getSAMfromRegf(sam, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
