@@ -160,6 +160,30 @@ void DebugPrintWideLength(const CHAR* label, const WCHAR* value, ULONG charLengt
 	wprintf(L"%.*ls\n", (int)charLength, value);
 }
 
+static BOOL CopyCountedWideString(WCHAR* destination, size_t destinationChars, const WCHAR* source, ULONG sourceBytes) {
+	if (destination == NULL || destinationChars == 0 || source == NULL || (sourceBytes % sizeof(WCHAR)) != 0) {
+		return FALSE;
+	}
+
+	size_t sourceChars = sourceBytes / sizeof(WCHAR);
+	if (sourceChars >= destinationChars) {
+		return FALSE;
+	}
+
+	CopyMemory(destination, source, sourceBytes);
+	destination[sourceChars] = L'\0';
+	return TRUE;
+}
+
+static BOOL CountedWideStringEquals(const WCHAR* value, ULONG valueBytes, const WCHAR* expected) {
+	if (value == NULL || expected == NULL) {
+		return FALSE;
+	}
+
+	size_t expectedBytes = wcslen(expected) * sizeof(WCHAR);
+	return valueBytes == expectedBytes && memcmp(value, expected, expectedBytes) == 0;
+}
+
 void DebugPrintGuid(const CHAR* label, REFGUID guid) {
 	if (!gDebugEnabled) {
 		return;
@@ -309,9 +333,16 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 		DebugPrintWideLength("SAM Users subkey name", keyInfoSubKeysBasic->Name, keyInfoSubKeysBasic->NameLength / sizeof(WCHAR));
 
-		if (wcsncmp(L"00", keyInfoSubKeysBasic->Name, wcslen(L"00")) == 0) {
+		WCHAR ridName[MAX_KEY_LENGTH] = {};
+		if (!CopyCountedWideString(ridName, MAX_KEY_LENGTH, keyInfoSubKeysBasic->Name, keyInfoSubKeysBasic->NameLength)) {
+			DebugPrintf("Skipping SAM Users subkey with invalid name length: %lu bytes\n", keyInfoSubKeysBasic->NameLength);
+			HeapFree(GetProcessHeap(), 0, keyInfoSubKeysBasic);
+			continue;
+		}
+
+		if (wcsncmp(L"00", ridName, wcslen(L"00")) == 0) {
 			WCHAR RegPathSubKeyV[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\\',L'D',L'o',L'm',L'a',L'i',L'n',L's',L'\\',L'A',L'c',L'c',L'o',L'u',L'n',L't',L'\\',L'U',L's',L'e',L'r',L's',L'\\', L'\0' };
-			wcsncat_s(RegPathSubKeyV, MAX_PATH, keyInfoSubKeysBasic->Name, _TRUNCATE);
+			wcsncat_s(RegPathSubKeyV, MAX_PATH, ridName, _TRUNCATE);
 			DebugPrintWideString("Processing RID key", RegPathSubKeyV);
 
 			pMyRtlInitUnicodeString(&UnicodeRegPathSubKeyV, RegPathSubKeyV);
@@ -337,7 +368,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 			}
 
 			PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SAM));
-			wcscpy_s(sam->rid, MAX_KEY_LENGTH, keyInfoSubKeysBasic->Name);
+			wcscpy_s(sam->rid, MAX_KEY_LENGTH, ridName);
 			DebugPrintWideString("RID selected for SAM entry", sam->rid);
 
 			getClasses(sam);
@@ -358,7 +389,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 				DebugPrintWideLength("RID value name", keyValuesSubKey->Name, keyValuesSubKey->NameLength / sizeof(WCHAR));
 
-				if (wcsncmp(keyValuesSubKey->Name, L"V", keyValuesSubKey->NameLength) == 0) {
+				if (CountedWideStringEquals(keyValuesSubKey->Name, keyValuesSubKey->NameLength, L"V")) {
 					PVOID data = (PVOID)((ULONG_PTR)keyValuesSubKey + keyValuesSubKey->DataOffset);
 					CopyMemory(sam->v, data, keyValuesSubKey->DataLength);
 					sam->vLen = keyValuesSubKey->DataLength;
@@ -406,7 +437,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 				DebugPrintWideLength("Account value name", keyValuesSubKey->Name, keyValuesSubKey->NameLength / sizeof(WCHAR));
 
-				if (wcsncmp(keyValuesSubKey->Name, L"F", keyValuesSubKey->NameLength) == 0) {
+				if (CountedWideStringEquals(keyValuesSubKey->Name, keyValuesSubKey->NameLength, L"F")) {
 					PVOID data = (PVOID)((ULONG_PTR)keyValuesSubKey + keyValuesSubKey->DataOffset);
 					CopyMemory(sam->f, data, keyValuesSubKey->DataLength);
 					sam->fLen = keyValuesSubKey->DataLength;
