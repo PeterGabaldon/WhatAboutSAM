@@ -4,6 +4,7 @@
 
 #include <Windows.h>
 #include <vss.h>
+#include <vswriter.h>
 #include <vsbackup.h>
 
 #include "main.h"
