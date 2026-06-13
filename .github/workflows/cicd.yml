@@ -15,7 +15,6 @@ jobs:
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'
-        $vsnasmRef = '17e29635060397a4a4a6bee578fd3ba089939e88'
         $files = @('nasm.props', 'nasm.targets', 'nasm.xml')
         $versions = @('v170', 'v160', 'v150')
 
@@ -25,7 +24,7 @@ jobs:
 
           foreach ($file in $files) {
             $destination = Join-Path $target $file
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/$vsnasmRef/$file" -OutFile $destination
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/refs/head/master/$file" -OutFile $destination
 
             if ($file -eq 'nasm.targets') {
               $content = Get-Content -Path $destination
