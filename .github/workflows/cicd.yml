@@ -24,7 +24,7 @@ jobs:
 
           foreach ($file in $files) {
             $destination = Join-Path $target $file
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/refs/head/master/$file" -OutFile $destination
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/refs/heads/master/$file" -OutFile $destination
 
             if ($file -eq 'nasm.targets') {
               $content = Get-Content -Path $destination
