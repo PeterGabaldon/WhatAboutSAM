@@ -37,7 +37,7 @@ Please, take a look at the credits because without these projects this would not
 
 ## Credits
 
-Please, take a look to this project, without them I could not have developed WhatAboutSAM.
+Please, take a look to these projects, without them I could not have developed WhatAboutSAM.
 
 - https://github.com/Maldev-Academy/MaldevAcademyLdr.1/tree/main/HashCalculator
 - https://github.com/tobiohlala/NTLMX
