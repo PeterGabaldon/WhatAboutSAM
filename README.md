@@ -31,7 +31,7 @@ Please, take a look at the credits because without these projects this would not
 - [ ] Test Old Algorithm. What a bummer. Microsoft Changed storage in SAM in Windows 10 1909
 - [x] Command Line Parameters
 - [ ] Add more comments :)
-- [ ] Debug prints
+- [x] Debug prints
 - [ ] Elevate to SYSTEM
 
 
@@ -49,5 +49,4 @@ Please, take a look to these projects, without them I could not have developed W
 - https://cryptopp.com/docs/ref/
 - https://github.com/ShiftMediaProject/VSNASM
 - I believe I do not fortget any, if I am not right I will add it later :P
-
 

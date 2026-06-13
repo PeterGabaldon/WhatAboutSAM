@@ -44,7 +44,16 @@ typedef struct _sam {
 	WCHAR classes[MAX_KEY_VALUE_LENGTH];
 } *PSAM, SAM;
 
+extern BOOL gDebugEnabled;
+
 FARPROC myGetProcAddress(DWORD moduleName, DWORD exportName);
+void DebugPrintf(const CHAR* format, ...);
+void DebugWPrintf(const WCHAR* format, ...);
+void DebugPrintHex(const CHAR* label, const BYTE* data, ULONG length);
+void DebugPrintHexPreview(const CHAR* label, const BYTE* data, ULONG length, ULONG maxLength);
+void DebugPrintWideString(const CHAR* label, const WCHAR* value);
+void DebugPrintWideLength(const CHAR* label, const WCHAR* value, ULONG charLength);
+void DebugPrintGuid(const CHAR* label, REFGUID guid);
 void getSAM(PSAM samRegEntries[], PULONG size);
 void getClasses(PSAM samRegEntry);
 void getBootKey(PSAM samRegEntry, PBYTE bootKeyRet);

