@@ -11,64 +11,36 @@ jobs:
     - name: Install NASM
       run: | 
         cmd.exe /c my_download_nasm.bat
-    - uses: ilammy/msvc-dev-cmd@v1.4.1
-    - uses: suisei-cn/actions-download-file@v1.3.0
-      id: downloadfile  # Remember to give an ID if you need the output filename
-      name: Download the nasm.props
-      with:
-        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.props'
-        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations\'
-    - uses: suisei-cn/actions-download-file@v1.3.0
-      id: downloadfile2  # Remember to give an ID if you need the output filename  
-      name: Download the nasm.targets
-      with:
-        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.targets'
-        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations\'
-    - uses: suisei-cn/actions-download-file@v1.3.0
-      id: downloadfile3  # Remember to give an ID if you need the output filename  
-      name: Download the nasm.xml
-      with:
-        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.xml'
-        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations\'   
-    - uses: suisei-cn/actions-download-file@v1.3.0
-      id: downloadfile4  # Remember to give an ID if you need the output filename
-      name: Download the nasm.props
-      with:
-        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.props'
-        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v160\BuildCustomizations\'
-    - uses: suisei-cn/actions-download-file@v1.3.0
-      id: downloadfile5  # Remember to give an ID if you need the output filename  
-      name: Download the nasm.targets
-      with:
-        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.targets'
-        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v160\BuildCustomizations\'
-    - uses: suisei-cn/actions-download-file@v1.3.0
-      id: downloadfile6  # Remember to give an ID if you need the output filename  
-      name: Download the nasm.xml
-      with:
-        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.xml'
-        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v160\BuildCustomizations\'  
-    - uses: suisei-cn/actions-download-file@v1.3.0
-      id: downloadfile7  # Remember to give an ID if you need the output filename
-      name: Download the nasm.props
-      with:
-        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.props'
-        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v150\BuildCustomizations\'
-    - uses: suisei-cn/actions-download-file@v1.3.0
-      id: downloadfile8  # Remember to give an ID if you need the output filename  
-      name: Download the nasm.targets
-      with:
-        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.targets'
-        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v150\BuildCustomizations\'
-    - uses: suisei-cn/actions-download-file@v1.3.0
-      id: downloadfile9  # Remember to give an ID if you need the output filename  
-      name: Download the nasm.xml
-      with:
-        url: 'https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/master/nasm.xml'
-        target: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v150\BuildCustomizations\'    
+    - name: Install VSNASM build customizations
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $vsnasmRef = '17e29635060397a4a4a6bee578fd3ba089939e88'
+        $files = @('nasm.props', 'nasm.targets', 'nasm.xml')
+        $versions = @('v170', 'v160', 'v150')
+
+        foreach ($version in $versions) {
+          $target = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\$version\BuildCustomizations"
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+
+          foreach ($file in $files) {
+            $destination = Join-Path $target $file
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShiftMediaProject/VSNASM/$vsnasmRef/$file" -OutFile $destination
+
+            if ($file -eq 'nasm.targets') {
+              $content = Get-Content -Path $destination
+              $content |
+                Where-Object { $_ -notmatch '^\s*TrackFileAccess\s*=' } |
+                Set-Content -Path $destination -Encoding UTF8
+            }
+          }
+        }
     - name: compile
+      shell: cmd
       run: | 
-        cd WhatAboutSAM; MSBuild.exe /t:Rebuild /p:Configuration=Release .\WhatAboutSAM.sln
+        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=x64
+        cd WhatAboutSAM
+        MSBuild.exe /t:Rebuild /p:Configuration=Release .\WhatAboutSAM.sln
     - name: upload executable
       uses: actions/upload-artifact@v7
       with:
