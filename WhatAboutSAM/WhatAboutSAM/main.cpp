@@ -879,37 +879,6 @@ DWORD HashString2A(LPCSTR String)
 }
 
 int main(int argc, char** argv) {
-#ifdef PROXY_NT_CALLS
-
-	pMyNtOpenKey = proxyNtOpenKey;
-	pMyNtQueryKey = proxyNtQueryKey;
-	pMyNtEnumerateKey = proxyNtEnumerateKey;
-	pMyNtQueryValueKey = proxyNtQueryValueKey;
-	pMyNtEnumerateValueKey = proxyNtEnumerateValueKey;
-	pMyNtClose = proxyNtCloseKey;
-	pMyRtlInitUnicodeString = proxyRtlInitUnicodeString;
-
-#endif // PROXY_NT_CALLS
-#ifndef PROXY_NT_CALLS
-
-	FARPROC auxPMyNtOpenKey = myGetProcAddress(ntdlldll_RFDT, NtOpenKey_RFDT);
-	FARPROC auxPMyNtQueryKey = myGetProcAddress(ntdlldll_RFDT, NtQueryKey_RFDT);
-	FARPROC auxPMyNtEnumerateKey = myGetProcAddress(ntdlldll_RFDT, NtEnumerateKey_RFDT);
-	FARPROC auxPMyNtQueryValueKey = myGetProcAddress(ntdlldll_RFDT, NtQueryValueKey_RFDT);
-	FARPROC auxPMyNtEnumerateValueKey = myGetProcAddress(ntdlldll_RFDT, NtEnumerateValueKey_RFDT);
-	FARPROC auxPMyNtClose = myGetProcAddress(ntdlldll_RFDT, NtClose_RFDT);
-	FARPROC auxPMyRtlInitUnicodeString = myGetProcAddress(ntdlldll_RFDT, RtlInitUnicodeString_RFDT);
-
-	pMyNtOpenKey = (myNtOpenKey)auxPMyNtOpenKey;
-	pMyNtQueryKey = (myNtQueryKey)auxPMyNtQueryKey;
-	pMyNtEnumerateKey = (myNtEnumerateKey)auxPMyNtEnumerateKey;
-	pMyNtQueryValueKey = (myNtQueryValueKey)auxPMyNtQueryValueKey;
-	pMyNtEnumerateValueKey = (myNtEnumerateValueKey)auxPMyNtEnumerateValueKey;
-	pMyNtClose = myNtClose(auxPMyNtClose);
-	pMyRtlInitUnicodeString = (myRtlInitUnicodeString)auxPMyRtlInitUnicodeString;
-
-#endif // !PROXY_NT_CALLS
-
 	BOOL useShadowSnapshotFlag = FALSE;
 	BOOL useRegistryFlag = FALSE;
 	BOOL debugFlag = FALSE;
