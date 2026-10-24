@@ -588,10 +588,10 @@ static void grantRegistryTree(const WCHAR RegPath[], PDACLSAVE* saves, PSECURITY
 	pMyRtlInitUnicodeString(&UnicodeRegPath, RegPath);
 	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-	// Administrators own the key now, so opening it for subkey enumeration succeeds through the new DACL.
-	// Querying KeyFullInformation needs READ_CONTROL on top of the enumeration right, both granted to Administrators by the new DACL.
-	ret = pMyNtOpenKey(&key, READ_CONTROL | KEY_ENUMERATE_SUB_KEYS, &attributes);
-	DebugPrintf("NtOpenKey(key, READ_CONTROL | KEY_ENUMERATE_SUB_KEYS) returned 0x%08lX\n", ret);
+	// Administrators own the key now, so opening it for enumeration succeeds through the new DACL granting KEY_READ.
+	// NtQueryKey requires KEY_QUERY_VALUE on the handle, NtEnumerateKey requires KEY_ENUMERATE_SUB_KEYS: handle access is checked against the mask granted at open, independently of the DACL.
+	ret = pMyNtOpenKey(&key, KEY_READ, &attributes);
+	DebugPrintf("NtOpenKey(key, KEY_READ) returned 0x%08lX\n", ret);
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
