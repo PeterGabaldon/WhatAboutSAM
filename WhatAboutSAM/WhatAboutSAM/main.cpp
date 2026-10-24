@@ -638,14 +638,14 @@ void grantRegistryAccess(PDACLSAVE samSave, PDACLSAVE systemSave) {
 		exit(ret);
 	}
 
-	ret = pMyRtlCreateAcl(&newAcl, sizeof(newAcl), ACL_REVISION);
+	ret = pMyRtlCreateAcl((PACL)newAcl, sizeof(newAcl), ACL_REVISION);
 	DebugPrintf("RtlCreateAcl returned 0x%08lX; ACL size: %lu bytes\n", ret, (ULONG)sizeof(newAcl));
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
 	}
 
-	ret = pMyRtlAddAccessAllowedAceEx(&newAcl, ACL_REVISION, CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE, KEY_READ, (PSID)administratorSid);
+	ret = pMyRtlAddAccessAllowedAceEx((PACL)newAcl, ACL_REVISION, CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE, KEY_READ, (PSID)administratorSid);
 	DebugPrintf("RtlAddAccessAllowedAceEx(KEY_READ, CONTAINER | OBJECT inherit) returned 0x%08lX\n", ret);
 
 	if (!NT_SUCCESS(ret)) {
