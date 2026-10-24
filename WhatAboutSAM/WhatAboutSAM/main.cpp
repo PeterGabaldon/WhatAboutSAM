@@ -589,24 +589,29 @@ static void grantRegistryTree(const WCHAR RegPath[], PDACLSAVE* saves, PSECURITY
 	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 	// Administrators own the key now, so opening it for subkey enumeration succeeds through the new DACL.
-	ret = pMyNtOpenKey(&key, KEY_ENUMERATE_SUB_KEYS, &attributes);
-	DebugPrintf("NtOpenKey(key, KEY_ENUMERATE_SUB_KEYS) returned 0x%08lX\n", ret);
+	// Querying KeyFullInformation needs READ_CONTROL on top of the enumeration right, both granted to Administrators by the new DACL.
+	ret = pMyNtOpenKey(&key, READ_CONTROL | KEY_ENUMERATE_SUB_KEYS, &attributes);
+	DebugPrintf("NtOpenKey(key, READ_CONTROL | KEY_ENUMERATE_SUB_KEYS) returned 0x%08lX\n", ret);
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
 	}
 
 	ret = pMyNtQueryKey(key, KeyFullInformation, fullInfo, sizeof(fullInfoBuffer), &resultLength);
-	DebugPrintf("NtQueryKey(subkey count) returned 0x%08lX; key holds %lu subkeys\n", ret, fullInfo->SubKeys);
+	DebugPrintf("NtQueryKey(subkey count) returned 0x%08lX\n", ret);
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
 	}
 
+	// The subkey count is only valid once the query succeeded.
+	DebugPrintf("Key holds %lu subkeys\n", fullInfo->SubKeys);
+
 	for (ULONG i = 0; i < fullInfo->SubKeys; i++) {
 		ret = pMyNtEnumerateKey(key, i, KeyBasicInformation, basicInfo, sizeof(basicInfoBuffer), &resultLength);
 
 		if (!NT_SUCCESS(ret)) {
+			DebugPrintf("NtEnumerateKey returned 0x%08lX on iteration %lu\n", ret, i);
 			exit(ret);
 		}
 
