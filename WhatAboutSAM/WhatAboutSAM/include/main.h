@@ -1,6 +1,8 @@
 #pragma once
 
 #include <winternl.h>
+#include <accctrl.h>
+#include <aclapi.h>
 
 #include "ntdll.h"
 
@@ -26,8 +28,8 @@
 #define NtOpenKeyEx_RFDT         0x3001822F
 #define RtlAdjustPrivilege_RFDT          0xDEBA8E59
 #define NtQuerySecurityObject_RFDT       0x96E803DC
-#define Advapi32dll_RFDT         0xAE942D79
-#define Kernel32dll_RFDT         0xB7B491A5
+#define advapi32dll_RFDT         0xAE942D79
+#define kernel32dll_RFDT         0xB7B491A5
 #define SetEntriesInAclW_RFDT    0x2E755D39
 #define SetNamedSecurityInfoW_RFDT       0x0D4A18E1
 #define LocalFree_RFDT   0x13FFD1C2
@@ -65,6 +67,17 @@ typedef struct _sam {
 	ULONG fLen;
 	WCHAR classes[MAX_KEY_VALUE_LENGTH];
 } *PSAM, SAM;
+
+// Self-relative security descriptor header used to locate the saved owner + DACL offsets
+typedef struct _relDescriptor {
+	UCHAR Revision;
+	UCHAR Sbz1;
+	USHORT Control;
+	ULONG Owner;
+	ULONG Group;
+	ULONG Sacl;
+	ULONG Dacl;
+} *PRELDESCRIPTOR, RELDESCRIPTOR;
 
 typedef struct _daclSave {
 	WCHAR regPath[MAX_KEY_LENGTH];                  // MACHINE\... registry key path for SetNamedSecurityInfoW

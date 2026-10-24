@@ -14,8 +14,6 @@
 
 #include <Windows.h>
 #include <winternl.h>
-#include <accctrl.h>
-#include <aclapi.h>
 
 #include "include/main.h"
 #include "include/proxyNtCalls.h"
@@ -490,7 +488,7 @@ static void grantRegistryKeyDacl(const WCHAR RegPath[], const WCHAR RegWinPath[]
 	ULONG lengthBuff = MAX_SECURITY_LENGTH;
 	EXPLICIT_ACCESS_W explicitAccess;
 	PACL mergedDacl = NULL;
-	PSECURITY_DESCRIPTOR_RELATIVE savedRel;
+	PRELDESCRIPTOR savedRel;
 	DWORD ret;
 
 	DebugPrintf("Granting Administrators read access to registry key\n");
@@ -516,7 +514,7 @@ static void grantRegistryKeyDacl(const WCHAR RegPath[], const WCHAR RegWinPath[]
 		exit(ret);
 	}
 
-	savedRel = (PSECURITY_DESCRIPTOR_RELATIVE)save->sd;
+	savedRel = (PRELDESCRIPTOR)save->sd;
 	save->owner = NULL;
 	save->dacl = NULL;
 	if (savedRel->Owner != 0) {
