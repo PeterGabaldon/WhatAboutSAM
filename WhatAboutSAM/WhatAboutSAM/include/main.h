@@ -26,12 +26,11 @@
 #define NtOpenKeyEx_RFDT         0x3001822F
 #define RtlAdjustPrivilege_RFDT          0xDEBA8E59
 #define NtQuerySecurityObject_RFDT       0x96E803DC
-#define NtSetSecurityObject_RFDT         0xF62EC132
-#define RtlCreateSecurityDescriptor_RFDT         0xF825CFF2
-#define RtlSetDaclSecurityDescriptor_RFDT        0xDEDBA61E
-#define RtlSetOwnerSecurityDescriptor_RFDT       0xBBFE56F5
-#define RtlCreateAcl_RFDT        0x6E33604B
-#define RtlAddAccessAllowedAceEx_RFDT    0xFABD6950
+#define Advapi32dll_RFDT         0xAE942D79
+#define Kernel32dll_RFDT         0xB7B491A5
+#define SetEntriesInAclW_RFDT    0x2E755D39
+#define SetNamedSecurityInfoW_RFDT       0x0D4A18E1
+#define LocalFree_RFDT   0x13FFD1C2
 
 // Privileges required to rewrite the DACL of protected registry keys without SYSTEM rights
 #define SE_TAKE_OWNERSHIP_PRIVILEGE      9
@@ -52,12 +51,10 @@ typedef VOID(WINAPI* myRtlInitUnicodeString)(PUNICODE_STRING, __drv_aliasesMem P
 typedef NTSTATUS(WINAPI* myNtOpenKeyEx)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, ULONG);
 typedef NTSTATUS(WINAPI* myRtlAdjustPrivilege)(ULONG, BOOLEAN, BOOLEAN, PBOOLEAN);
 typedef NTSTATUS(WINAPI* myNtQuerySecurityObject)(HANDLE, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, ULONG, PULONG);
-typedef NTSTATUS(WINAPI* myNtSetSecurityObject)(HANDLE, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR);
-typedef NTSTATUS(WINAPI* myRtlCreateSecurityDescriptor)(PSECURITY_DESCRIPTOR, ULONG);
-typedef NTSTATUS(WINAPI* myRtlSetDaclSecurityDescriptor)(PSECURITY_DESCRIPTOR, BOOLEAN, PACL, BOOLEAN);
-typedef NTSTATUS(WINAPI* myRtlSetOwnerSecurityDescriptor)(PSECURITY_DESCRIPTOR, PSID, BOOLEAN);
-typedef NTSTATUS(WINAPI* myRtlCreateAcl)(PACL, ULONG, ULONG);
-typedef NTSTATUS(WINAPI* myRtlAddAccessAllowedAceEx)(PACL, ULONG, ULONG, ACCESS_MASK, PSID);
+
+typedef DWORD(WINAPI* mySetEntriesInAclW)(ULONG, PEXPLICIT_ACCESS_W, PACL, PACL*);
+typedef DWORD(WINAPI* mySetNamedSecurityInfoW)(LPWSTR, SE_OBJECT_TYPE, SECURITY_INFORMATION, PSID, PSID, PACL, PACL);
+typedef HLOCAL(WINAPI* myLocalFree)(HLOCAL);
 
 
 typedef struct _sam {
@@ -70,9 +67,11 @@ typedef struct _sam {
 } *PSAM, SAM;
 
 typedef struct _daclSave {
-	WCHAR regPath[MAX_KEY_LENGTH];                  // registry key path whose original security descriptor is saved
-	ULONG sdLength;                                 // length of the saved security descriptor
+	WCHAR regPath[MAX_KEY_LENGTH];                  // MACHINE\... registry key path for SetNamedSecurityInfoW
+	ULONG sdLength;                                 // length of the saved self-relative security descriptor
 	ULONG sd[MAX_SECURITY_LENGTH / sizeof(ULONG)];  // saved original owner + DACL
+	PSID owner;                                     // original owner SID inside the saved descriptor
+	PACL dacl;                                      // original DACL inside the saved descriptor
 } *PDACLSAVE, DACLSAVE;
 
 extern BOOL gDebugEnabled;

