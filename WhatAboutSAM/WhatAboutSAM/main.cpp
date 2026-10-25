@@ -533,27 +533,36 @@ static void grantRegistryKeyDacl(const WCHAR RegPath[], PDACLSAVE* saves, PSECUR
 
 	pMyNtClose(key);
 
-	// The new ACE is merged into a copy of the original DACL, so the current permissions stay in place the whole time instead of the key holding only the Administrators ACE.
+	// The new ACE is merged into the original DACL, so the current permissions stay in place the whole time instead of the key holding only the Administrators ACE.
 	savedRel = (PRELDESCRIPTOR)save->sd;
 	originalDacl = (PACL)((PBYTE)savedRel + savedRel->Dacl);
+	BOOL hasOriginalDacl = (savedRel->Dacl != 0);
 
-	if (savedRel->Dacl != 0) {
-		DebugPrintf("Original DACL: %hu ACEs in %hu bytes; copying it and appending the new ACE\n", originalDacl->AceCount, originalDacl->AclSize);
-		CopyMemory(mergedAcl, originalDacl, originalDacl->AclSize);
+	// The appended ACE carries the S-1-5-32-544 SID: 8 SID header bytes + 2 * 4 subauthority bytes, so it needs 8 + 16 = 24 bytes.
+	ULONG aceSize = 8 + 16;
+	ULONG mergedCapacity = sizeof(ACL) + aceSize;
+
+	if (hasOriginalDacl) {
+		DebugPrintf("Original DACL: %hu ACEs in %hu bytes\n", originalDacl->AceCount, originalDacl->AclSize);
 		aceRevision = originalDacl->AclRevision;
-	}
-	else {
-		// No original DACL present: start from an empty one.
-		ret = pMyRtlCreateAcl((PACL)mergedAcl, sizeof(mergedAcl), ACL_REVISION);
-		DebugPrintf("RtlCreateAcl(merged, empty start) returned 0x%08lX\n", ret);
-
-		if (!NT_SUCCESS(ret)) {
-			exit(ret);
-		}
+		mergedCapacity = originalDacl->AclSize + aceSize;
 	}
 
-	// RtlAddAccessAllowedAceEx appends at the ACL's current end and bumps AceCount + AclSize.
-	// S-1-5-32-544 is 8 SID header bytes + 2 * 4 subauthority bytes, so the appended ACE needs 8 + 16 = 24 bytes beyond the copied ACL, well within the buffer.
+	// RtlCreateAcl records the CAPACITY in AclSize: the ACE adders bound-check appended ACEs against it, so the header must state the merged size instead of cloning the original (whose AclSize states the used bytes, not the capacity).
+	ret = pMyRtlCreateAcl((PACL)mergedAcl, mergedCapacity, aceRevision);
+	DebugPrintf("RtlCreateAcl(merged capacity %lu) returned 0x%08lX\n", mergedCapacity, ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	if (hasOriginalDacl) {
+		// Copy the original ACEs into the bigger ACL and set their count; they stay contiguous right after the header.
+		CopyMemory((PBYTE)mergedAcl + sizeof(ACL), (PBYTE)originalDacl + sizeof(ACL), originalDacl->AclSize - sizeof(ACL));
+		((PACL)mergedAcl)->AceCount = originalDacl->AceCount;
+	}
+
+	// RtlAddAccessAllowedAceEx appends at the first free spot within the capacity and bumps AceCount + AclRevision.
 	ret = pMyRtlAddAccessAllowedAceEx((PACL)mergedAcl, aceRevision, CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE, KEY_READ, administratorSid);
 	DebugPrintf("RtlAddAccessAllowedAceEx(merged) returned 0x%08lX\n", ret);
 
