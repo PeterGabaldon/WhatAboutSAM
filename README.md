@@ -52,6 +52,7 @@ Please, take a look at the credits because without these projects this would not
 - [ ] Add more comments :)
 - [x] Debug prints
 - [ ] Add optional SYSTEM elevation for the live registry method
+- [x] Administrator's DACL Write Abuse
 
 
 ## Credits
