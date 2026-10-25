@@ -70,6 +70,17 @@ typedef struct _sam {
 	WCHAR classes[MAX_KEY_VALUE_LENGTH];
 } *PSAM, SAM;
 
+// Self-relative security descriptor header used to locate the saved original DACL when merging the new ACE into it
+typedef struct _relDescriptor {
+	UCHAR Revision;
+	UCHAR Sbz1;
+	USHORT Control;
+	ULONG Owner;
+	ULONG Group;
+	ULONG Sacl;
+	ULONG Dacl;
+} *PRELDESCRIPTOR, RELDESCRIPTOR;
+
 typedef struct _daclSave {
 	WCHAR regPath[MAX_KEY_LENGTH];                  // \Registry\Machine\... native path of the rewritten key
 	ULONG sdLength;                                 // length of the saved self-relative security descriptor

